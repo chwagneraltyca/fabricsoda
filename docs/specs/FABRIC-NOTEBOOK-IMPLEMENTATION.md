@@ -716,6 +716,74 @@ Add these incrementally:
 
 ---
 
+## Execution Logging Schema
+
+The notebook writes execution results to two tables: `dq_execution_logs` and `dq_results`.
+
+### Deployment
+
+```powershell
+# Deploy execution schema (run AFTER simplified-schema-minimal-ddl.sql)
+# Via SQL tool or check scripts/Deploy/deploy-execution-ddl.ps1
+```
+
+**File:** `setup/notebook-execution-ddl.sql`
+
+### Tables
+
+#### dq_execution_logs
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `execution_log_id` | BIGINT | Primary key (auto-generated) |
+| `run_id` | NVARCHAR(50) | Unique run identifier (UUID prefix) |
+| `suite_id` | INT | FK to dq_suites |
+| `execution_status` | NVARCHAR(20) | running, completed, failed |
+| `total_checks` | INT | Total checks executed |
+| `checks_passed` | INT | Checks with pass outcome |
+| `checks_failed` | INT | Checks with fail outcome |
+| `checks_warned` | INT | Checks with warn outcome |
+| `has_failures` | BIT | 1 if any checks failed |
+| `error_message` | NVARCHAR(MAX) | Error details if failed |
+| `generated_yaml` | NVARCHAR(MAX) | SodaCL YAML used |
+| `created_at` | DATETIME2 | Execution start time |
+
+#### dq_results
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `result_id` | INT | Primary key |
+| `run_id` | NVARCHAR(50) | Run identifier |
+| `execution_log_id` | BIGINT | FK to execution_logs |
+| `check_id` | INT | FK to dq_checks (extracted from name) |
+| `check_name` | NVARCHAR(500) | Full check name with ID |
+| `check_outcome` | NVARCHAR(20) | pass, fail, warn, error |
+| `check_value` | DECIMAL(18,4) | Measured value |
+| `created_at` | DATETIME2 | Result timestamp |
+
+### Stored Procedures
+
+| SP | Purpose |
+|----|---------|
+| `sp_create_execution_log` | Create log entry, return `execution_log_id` |
+| `sp_update_execution_log` | Update with status, counts, yaml, error |
+| `sp_insert_result` | Insert individual check result |
+
+### Usage in Notebook
+
+```python
+# 1. Create execution log (returns execution_log_id)
+execution_log_id = create_execution_log(conn, run_id, suite_id)
+
+# 2. After scan - write individual results
+write_results_to_db(conn, execution_log_id, run_id, results)
+
+# 3. Update execution log with summary
+update_execution_log(conn, execution_log_id, counts, yaml_content)
+```
+
+---
+
 ## Stored Procedures Required
 
 **Minimum for MVP:**
@@ -846,6 +914,70 @@ data_source fabric_dwh:
 ### Smoke Test Template
 
 Use `src/Notebook/templates/soda_auth_smoke_test.py` to test which authentication methods work in your environment before implementing.
+
+---
+
+## Key Vault Integration for Secure Credentials
+
+### Overview
+
+Service Principal credentials are stored securely in Azure Key Vault and retrieved at runtime using `notebookutils.credentials.getSecret()`.
+
+### Configuration
+
+| Secret | Key Vault | Secret Name |
+|--------|-----------|-------------|
+| Service Principal Client Secret | `chwakv` | `dq-checker-spn-secret` |
+
+### Usage in Notebook
+
+```python
+import notebookutils
+
+# Key Vault configuration
+KEY_VAULT_URI = "https://chwakv.vault.azure.net/"
+SECRET_NAME = "dq-checker-spn-secret"
+
+# Retrieve secret at runtime
+CLIENT_SECRET = notebookutils.credentials.getSecret(KEY_VAULT_URI, SECRET_NAME)
+print("Secret loaded successfully!")
+
+# Use in Soda config
+config = f"""
+data_source fabric_dwh:
+  type: sqlserver
+  driver: ODBC Driver 18 for SQL Server
+  host: {DWH_SERVER}
+  port: '1433'
+  database: {DWH_DATABASE}
+  authentication: ActiveDirectoryServicePrincipal
+  username: {CLIENT_ID}
+  password: {CLIENT_SECRET}
+  encrypt: true
+  trust_server_certificate: false
+"""
+```
+
+### RBAC Requirements
+
+Fabric runtime identity needs "Key Vault Secrets User" role on the vault:
+
+| Principal | Role | Scope |
+|-----------|------|-------|
+| Fabric Runtime Identity (`c7082bf4-7788-400b-b4d8-26eef37f55c2`) | Key Vault Secrets User | `/subscriptions/.../resourceGroups/.../providers/Microsoft.KeyVault/vaults/chwakv` |
+
+**To grant access:**
+```powershell
+# Use scripts/Deploy/grant-kv-access.ps1
+pwsh ./scripts/Deploy/grant-kv-access.ps1
+```
+
+### Security Best Practices
+
+1. **Never hardcode secrets** - Always use Key Vault for client secrets
+2. **Limit RBAC scope** - Grant "Key Vault Secrets User" (read-only), not "Key Vault Administrator"
+3. **Rotate secrets** - Update Key Vault secret when rotating service principal credentials
+4. **Audit access** - Enable Key Vault diagnostics logging
 
 ---
 
