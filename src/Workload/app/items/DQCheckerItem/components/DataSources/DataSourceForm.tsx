@@ -34,7 +34,7 @@ import {
 } from '../../types/dataSource.types';
 import { dqTypography } from '../../../../styles/tokens';
 
-// Styles matching legacy design
+// Styles matching legacy design with Fabric UX improvements
 const useStyles = makeStyles({
   dialog: {
     maxWidth: '672px', // max-w-2xl
@@ -45,25 +45,35 @@ const useStyles = makeStyles({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
+    ...shorthands.padding(tokens.spacingVerticalM, tokens.spacingHorizontalL),
+    backgroundColor: tokens.colorNeutralBackground3,
+    ...shorthands.borderBottom('1px', 'solid', tokens.colorNeutralStroke2),
+    marginLeft: `-${tokens.spacingHorizontalL}`,
+    marginRight: `-${tokens.spacingHorizontalL}`,
+    marginTop: `-${tokens.spacingVerticalL}`,
+    marginBottom: tokens.spacingVerticalL,
   },
 
   title: {
     fontSize: dqTypography.fontSizeXl,
     fontWeight: dqTypography.fontWeightBold,
+    color: tokens.colorNeutralForeground1,
+    margin: 0,
   },
 
   closeButton: {
     color: tokens.colorNeutralForeground3,
     '&:hover': {
       color: tokens.colorNeutralForeground1,
+      backgroundColor: tokens.colorNeutralBackground1Hover,
     },
   },
 
   formGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(2, 1fr)',
-    gap: tokens.spacingHorizontalM,
-    marginTop: tokens.spacingVerticalM,
+    gap: tokens.spacingHorizontalL,
+    marginTop: tokens.spacingVerticalS,
   },
 
   fullWidth: {
@@ -73,6 +83,7 @@ const useStyles = makeStyles({
   fieldLabel: {
     fontWeight: dqTypography.fontWeightMedium,
     fontSize: dqTypography.fontSizeSm,
+    color: tokens.colorNeutralForeground2,
   },
 
   required: {
@@ -80,31 +91,59 @@ const useStyles = makeStyles({
     marginLeft: '2px',
   },
 
+  // Input styling with background
+  input: {
+    backgroundColor: tokens.colorNeutralBackground2,
+    '&:focus-within': {
+      backgroundColor: tokens.colorNeutralBackground1,
+    },
+  },
+
   hint: {
     fontSize: dqTypography.fontSizeXs,
     color: tokens.colorNeutralForeground3,
-    marginTop: '2px',
+    marginTop: '4px',
   },
 
   switchRow: {
     display: 'flex',
     alignItems: 'center',
     gap: tokens.spacingHorizontalS,
+    ...shorthands.padding(tokens.spacingVerticalS, 0),
+  },
+
+  switchLabel: {
+    fontSize: dqTypography.fontSizeSm,
+    color: tokens.colorNeutralForeground2,
   },
 
   actions: {
     display: 'flex',
     justifyContent: 'flex-end',
     gap: tokens.spacingHorizontalS,
-    marginTop: tokens.spacingVerticalL,
+    marginTop: tokens.spacingVerticalXL,
     paddingTop: tokens.spacingVerticalM,
     ...shorthands.borderTop('1px', 'solid', tokens.colorNeutralStroke2),
+    backgroundColor: tokens.colorNeutralBackground2,
+    marginLeft: `-${tokens.spacingHorizontalL}`,
+    marginRight: `-${tokens.spacingHorizontalL}`,
+    marginBottom: `-${tokens.spacingVerticalL}`,
+    ...shorthands.padding(tokens.spacingVerticalM, tokens.spacingHorizontalL),
   },
 
   errorMessage: {
     color: tokens.colorPaletteRedForeground1,
     fontSize: dqTypography.fontSizeXs,
     marginTop: '4px',
+  },
+
+  formError: {
+    backgroundColor: tokens.colorPaletteRedBackground1,
+    color: tokens.colorPaletteRedForeground1,
+    ...shorthands.padding(tokens.spacingVerticalS, tokens.spacingHorizontalM),
+    ...shorthands.borderRadius(tokens.borderRadiusMedium),
+    fontSize: dqTypography.fontSizeSm,
+    marginBottom: tokens.spacingVerticalM,
   },
 });
 
@@ -245,7 +284,7 @@ export const DataSourceForm: React.FC<DataSourceFormProps> = ({
             <DialogContent>
               {/* Form error */}
               {errors._form && (
-                <div className={styles.errorMessage}>{errors._form}</div>
+                <div className={styles.formError}>{errors._form}</div>
               )}
 
               <div className={styles.formGrid}>
@@ -267,6 +306,8 @@ export const DataSourceForm: React.FC<DataSourceFormProps> = ({
                     placeholder="e.g., Production_DWH"
                     disabled={isSubmitting}
                     required
+                    className={styles.input}
+                    appearance="filled-darker"
                   />
                 </Field>
 
@@ -283,6 +324,8 @@ export const DataSourceForm: React.FC<DataSourceFormProps> = ({
                     placeholder="Optional description of this connection"
                     rows={2}
                     disabled={isSubmitting}
+                    className={styles.input}
+                    appearance="filled-darker"
                   />
                 </Field>
 
@@ -293,7 +336,7 @@ export const DataSourceForm: React.FC<DataSourceFormProps> = ({
                     onChange={(_, data) => handleChange('is_active', data.checked)}
                     disabled={isSubmitting}
                   />
-                  <span>Active</span>
+                  <span className={styles.switchLabel}>Active</span>
                 </div>
               </div>
             </DialogContent>

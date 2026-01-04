@@ -20,8 +20,9 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import { Warning24Regular } from '@fluentui/react-icons';
+import { WarningRegular } from '@fluentui/react-icons';
 import { dqColors, dqTypography } from '../../../../styles/tokens';
+import { shorthands } from '@fluentui/react-components';
 
 const useStyles = makeStyles({
   dialog: {
@@ -31,17 +32,24 @@ const useStyles = makeStyles({
 
   content: {
     textAlign: 'center' as const,
+    ...shorthands.padding(tokens.spacingVerticalL, tokens.spacingHorizontalL),
   },
 
   iconContainer: {
     display: 'flex',
     justifyContent: 'center',
-    marginBottom: tokens.spacingVerticalM,
+    alignItems: 'center',
+    width: '72px',
+    height: '72px',
+    ...shorthands.borderRadius('50%'),
+    backgroundColor: tokens.colorPaletteRedBackground1,
+    marginLeft: 'auto',
+    marginRight: 'auto',
+    marginBottom: tokens.spacingVerticalL,
   },
 
   warningIcon: {
-    width: '56px',
-    height: '56px',
+    fontSize: '36px',
     color: dqColors.danger600,
   },
 
@@ -49,31 +57,37 @@ const useStyles = makeStyles({
     fontSize: dqTypography.fontSizeLg,
     fontWeight: dqTypography.fontWeightSemibold,
     color: tokens.colorNeutralForeground1,
-    marginBottom: tokens.spacingVerticalXS,
+    marginBottom: tokens.spacingVerticalS,
+    margin: 0,
   },
 
   message: {
     fontSize: dqTypography.fontSizeSm,
-    color: tokens.colorNeutralForeground3,
-    marginBottom: tokens.spacingVerticalM,
+    color: tokens.colorNeutralForeground2,
+    marginBottom: tokens.spacingVerticalXS,
+    margin: 0,
+    marginTop: tokens.spacingVerticalS,
   },
 
   sourceName: {
-    fontWeight: dqTypography.fontWeightMedium,
+    fontWeight: dqTypography.fontWeightSemibold,
     color: tokens.colorNeutralForeground1,
   },
 
   warning: {
     fontSize: dqTypography.fontSizeXs,
     color: tokens.colorNeutralForeground3,
-    fontStyle: 'italic' as const,
+    margin: 0,
+    marginTop: tokens.spacingVerticalXS,
   },
 
   actions: {
     display: 'flex',
     justifyContent: 'center',
-    gap: tokens.spacingHorizontalS,
-    marginTop: tokens.spacingVerticalL,
+    gap: tokens.spacingHorizontalM,
+    marginTop: tokens.spacingVerticalXL,
+    paddingTop: tokens.spacingVerticalM,
+    ...shorthands.borderTop('1px', 'solid', tokens.colorNeutralStroke2),
   },
 
   deleteButton: {
@@ -120,7 +134,7 @@ export const DeleteConfirmDialog: React.FC<DeleteConfirmDialogProps> = ({
         <DialogBody>
           <DialogContent className={styles.content}>
             <div className={styles.iconContainer}>
-              <Warning24Regular className={styles.warningIcon} />
+              <WarningRegular className={styles.warningIcon} />
             </div>
             <DialogTitle className={styles.title}>Delete Connection?</DialogTitle>
             <p className={styles.message}>

@@ -78,11 +78,18 @@ DWH_SERVER = "yndfhalt62tejhuwlqaqhskcgu-n3hvjhr6avluxog2ch3jdnb5ya.datawarehous
 DWH_DATABASE = "sample_dwh"
 
 # =============================================================================
+# KEY VAULT CONFIGURATION
+# Secrets are stored securely in Azure Key Vault
+# =============================================================================
+KEY_VAULT_URI = "https://chwakv.vault.azure.net/"
+SECRET_NAME = "dq-checker-spn-secret"
+
+# =============================================================================
 # SERVICE PRINCIPAL CREDENTIALS
-# In production, use Key Vault: notebookutils.credentials.getSecret()
+# Client ID is not a secret, Client Secret comes from Key Vault
 # =============================================================================
 CLIENT_ID = "b9450ac1-a673-4e67-87de-1b3b94036a40"
-CLIENT_SECRET = "<YOUR_CLIENT_SECRET>"  # Replace with actual secret or use Key Vault
+CLIENT_SECRET = None  # Will be loaded from Key Vault at runtime
 
 # =============================================================================
 # ONELAKE PATHS
@@ -117,6 +124,11 @@ import notebookutils
 RUN_ID = str(uuid.uuid4())[:8]
 print(f"Run ID: {RUN_ID}")
 print(f"Suite ID: {SUITE_ID}")
+
+# Load secret from Key Vault
+print(f"\nLoading secret from Key Vault: {KEY_VAULT_URI}")
+CLIENT_SECRET = notebookutils.credentials.getSecret(KEY_VAULT_URI, SECRET_NAME)
+print("Secret loaded successfully!")
 
 # %% [markdown]
 # ## 4. Database Connection
@@ -742,7 +754,118 @@ def write_to_onelake(run_id: str, execution_log_id: int, suite_id: int,
     return log_path
 
 # %% [markdown]
-# ## 10. Main Execution
+# ## 10. Smoke Test Mode
+#
+# Test Soda connection with a fake YAML (no metadata DB required).
+# Set `SMOKE_TEST = True` in configuration to run this instead of full suite.
+
+# %%
+def run_smoke_test() -> Dict[str, Any]:
+    """
+    Run smoke test to verify Soda connection to DWH.
+
+    Tests multiple authentication methods and reports which ones work.
+    Uses a simple check against INFORMATION_SCHEMA.TABLES (always exists).
+
+    Returns:
+        Dictionary with test results for each auth method
+    """
+    print("=" * 60)
+    print("SMOKE TEST - Testing Soda Authentication Methods")
+    print("=" * 60)
+    print(f"Target DWH: {DWH_SERVER}")
+    print(f"Database: {DWH_DATABASE}")
+
+    # Simple check that should always pass
+    SMOKE_CHECK_YAML = """
+checks for INFORMATION_SCHEMA.TABLES:
+  - row_count > 0:
+      name: "Smoke test - tables exist"
+"""
+
+    # Auth methods to test
+    auth_methods = [
+        ("sqlserver_spn", "soda-core-sqlserver + Service Principal (RECOMMENDED)"),
+        ("fabric_spn", "soda-core-fabric + Service Principal"),
+        ("fabric_spark", "soda-core-fabric + fabricspark (managed identity)"),
+        ("sqlserver_trusted", "soda-core-sqlserver + trusted_connection"),
+    ]
+
+    results = {}
+
+    for method_key, method_name in auth_methods:
+        print(f"\n{'='*60}")
+        print(f"Testing: {method_name}")
+        print(f"{'='*60}")
+
+        try:
+            config = get_dwh_config_yaml(method_key)
+
+            scan = Scan()
+            scan.set_data_source_name("fabric_dwh")
+            scan.set_scan_definition_name(f"smoke_test_{method_key}")
+            scan.add_configuration_yaml_str(config)
+            scan.add_sodacl_yaml_str(SMOKE_CHECK_YAML)
+
+            print("  Executing scan...")
+            scan.execute()
+
+            logs = scan.get_logs_text()
+            print("  Logs (first 500 chars):")
+            print(logs[:500])
+
+            if scan.has_error_logs():
+                print(f"\n  RESULT: FAILED")
+                results[method_key] = {
+                    "success": False,
+                    "error": scan.get_error_logs_text()[:500]
+                }
+            else:
+                scan_results = scan.get_scan_results()
+                checks = scan_results.get('checks', [])
+                print(f"\n  RESULT: SUCCESS! Checks executed: {len(checks)}")
+                results[method_key] = {
+                    "success": True,
+                    "checks_executed": len(checks),
+                    "results": scan_results
+                }
+        except Exception as e:
+            print(f"  EXCEPTION: {str(e)[:500]}")
+            results[method_key] = {
+                "success": False,
+                "error": str(e)[:500]
+            }
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("SMOKE TEST SUMMARY")
+    print("=" * 60)
+
+    working_methods = []
+    for method_key, method_name in auth_methods:
+        status = "PASS" if results[method_key]["success"] else "FAIL"
+        print(f"  {method_name}: {status}")
+        if results[method_key]["success"]:
+            working_methods.append(method_key)
+
+    print("=" * 60)
+
+    if working_methods:
+        print(f"\nWORKING METHODS: {working_methods}")
+        print(f"RECOMMENDED: {working_methods[0]}")
+    else:
+        print("\nNo authentication method worked!")
+        print("Check credentials and network connectivity.")
+
+    return {
+        "mode": "smoke_test",
+        "working_methods": working_methods,
+        "recommended": working_methods[0] if working_methods else None,
+        "results": results
+    }
+
+# %% [markdown]
+# ## 11. Main Execution
 #
 # Orchestrate the complete scan flow.
 
@@ -871,19 +994,26 @@ def execute_suite(suite_id: int, run_id: str) -> Dict[str, Any]:
         pass
 
 # %% [markdown]
-# ## 11. Run Scan
+# ## 12. Run Scan
 #
-# Execute the scan for the configured suite.
+# Execute smoke test or full suite based on configuration.
 
 # %%
-# Execute scan
-result = execute_suite(SUITE_ID, RUN_ID)
+# Execute based on mode
+if SMOKE_TEST:
+    print("Running in SMOKE TEST mode...")
+    print("Testing Soda authentication methods against target DWH")
+    print("Set SMOKE_TEST = False for full suite execution\n")
+    result = run_smoke_test()
+else:
+    print("Running in FULL SUITE mode...")
+    result = execute_suite(SUITE_ID, RUN_ID)
 
 # Display result
 print(f"\nResult: {json.dumps(result, indent=2)}")
 
 # %% [markdown]
-# ## 12. Pipeline Integration (Optional)
+# ## 13. Pipeline Integration (Optional)
 #
 # Uncomment to fail the pipeline if any checks failed.
 
@@ -894,10 +1024,20 @@ print(f"\nResult: {json.dumps(result, indent=2)}")
 
 # %% [markdown]
 # ---
-# ## Appendix: Generated YAML Preview
+# ## Appendix A: Generated YAML Preview
 #
 # Uncomment to view the generated SodaCL YAML for debugging.
 
 # %%
 # Preview generated YAML (for debugging)
 # print(yaml_content)
+
+# %% [markdown]
+# ## Appendix B: Pre-installed vs Pip Packages
+#
+# **Pre-installed in Fabric Python Notebooks:**
+# - notebookutils, pandas, DuckDB, Polars, Scikit-learn, delta-rs
+# - Matplotlib, Seaborn, Plotly, pyodbc
+#
+# **Installed via pip (line 46):**
+# - soda-core-sqlserver, soda-core-fabric

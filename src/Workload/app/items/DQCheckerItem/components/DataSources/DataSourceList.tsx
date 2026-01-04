@@ -25,7 +25,8 @@ import {
   Delete24Regular,
   ArrowSwap24Regular,
   Flash24Regular,
-  Database24Regular,
+  DatabaseRegular,
+  PlugConnectedRegular,
 } from '@fluentui/react-icons';
 import { DataSource, DataSourceFormData } from '../../types/dataSource.types';
 import { dqTypography, useDataTableStyles } from '../../../../styles/tokens';
@@ -44,13 +45,32 @@ const useStyles = makeStyles({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: tokens.spacingVerticalL,
+    marginBottom: tokens.spacingVerticalXL,
+    ...shorthands.padding(tokens.spacingVerticalM, 0),
   },
 
   headerLeft: {
     display: 'flex',
+    alignItems: 'flex-start',
+    gap: tokens.spacingHorizontalM,
+  },
+
+  headerIcon: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '48px',
+    height: '48px',
+    ...shorthands.borderRadius(tokens.borderRadiusMedium),
+    backgroundColor: tokens.colorBrandBackground2,
+    color: tokens.colorBrandForeground1,
+    fontSize: '24px',
+  },
+
+  headerContent: {
+    display: 'flex',
     flexDirection: 'column',
-    gap: tokens.spacingVerticalXS,
+    gap: tokens.spacingVerticalXXS,
   },
 
   pageTitle: {
@@ -58,10 +78,11 @@ const useStyles = makeStyles({
     fontWeight: dqTypography.fontWeightBold,
     color: tokens.colorNeutralForeground1,
     margin: 0,
+    lineHeight: '1.2',
   },
 
   pageSubtitle: {
-    fontSize: dqTypography.fontSizeMd,
+    fontSize: dqTypography.fontSizeSm,
     color: tokens.colorNeutralForeground3,
     margin: 0,
   },
@@ -92,35 +113,49 @@ const useStyles = makeStyles({
     ...shorthands.overflow('hidden'),
   },
 
-  // Empty state - follows Fabric UX pattern
+  // Empty state - follows Fabric UX pattern with larger icon
   emptyState: {
     display: 'flex',
     flexDirection: 'column' as const,
     alignItems: 'center',
     justifyContent: 'center',
     textAlign: 'center' as const,
-    ...shorthands.padding(tokens.spacingVerticalXXL, tokens.spacingHorizontalL),
-    minHeight: '300px',
+    ...shorthands.padding('64px', tokens.spacingHorizontalL),
+    minHeight: '400px',
+    backgroundColor: tokens.colorNeutralBackground2,
+  },
+
+  emptyStateIconWrapper: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '80px',
+    height: '80px',
+    ...shorthands.borderRadius('50%'),
+    backgroundColor: tokens.colorNeutralBackground1,
+    boxShadow: tokens.shadow4,
+    marginBottom: tokens.spacingVerticalL,
   },
 
   emptyStateIcon: {
-    fontSize: '48px',
-    color: tokens.colorNeutralForeground4,
-    marginBottom: tokens.spacingVerticalM,
+    fontSize: '40px',
+    color: tokens.colorBrandForeground1,
   },
 
   emptyStateTitle: {
-    fontSize: tokens.fontSizeBase400,
+    fontSize: tokens.fontSizeBase500,
     fontWeight: tokens.fontWeightSemibold,
     color: tokens.colorNeutralForeground1,
     marginBottom: tokens.spacingVerticalS,
+    margin: 0,
   },
 
   emptyStateDescription: {
     fontSize: tokens.fontSizeBase300,
     color: tokens.colorNeutralForeground3,
     marginBottom: tokens.spacingVerticalL,
-    maxWidth: '320px',
+    maxWidth: '400px',
+    lineHeight: '1.5',
   },
 
   actionsCell: {
@@ -290,10 +325,15 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
       {/* Page Header */}
       <div className={styles.pageHeader}>
         <div className={styles.headerLeft}>
-          <h2 className={styles.pageTitle}>Manage Connections</h2>
-          <p className={styles.pageSubtitle}>
-            Configure database connections for data quality checks
-          </p>
+          <div className={styles.headerIcon}>
+            <PlugConnectedRegular />
+          </div>
+          <div className={styles.headerContent}>
+            <h2 className={styles.pageTitle}>Manage Connections</h2>
+            <p className={styles.pageSubtitle}>
+              Configure database connections for data quality checks
+            </p>
+          </div>
         </div>
         <Button
           appearance="primary"
@@ -324,13 +364,15 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
           </div>
         ) : filteredSources.length === 0 ? (
           <div className={styles.emptyState}>
-            <Database24Regular className={styles.emptyStateIcon} />
-            <div className={styles.emptyStateTitle}>No connections yet</div>
-            <div className={styles.emptyStateDescription}>
-              Add a database connection to start running data quality checks on your Fabric Warehouse.
+            <div className={styles.emptyStateIconWrapper}>
+              <DatabaseRegular className={styles.emptyStateIcon} />
             </div>
+            <h3 className={styles.emptyStateTitle}>No connections yet</h3>
+            <p className={styles.emptyStateDescription}>
+              Get started by adding a database connection. You'll be able to run data quality checks on your Fabric Warehouse.
+            </p>
             <Button
-              appearance="secondary"
+              appearance="primary"
               icon={<Add24Regular />}
               onClick={handleOpenCreate}
             >
