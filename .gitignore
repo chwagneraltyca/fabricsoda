@@ -1,0 +1,64 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Internal (not for public repo)
+.claude/
+CLAUDE.md
+.mcp.json
+
+# Legacy reference code (read-only, not needed in repo)
+Legacy/
+
+# Build & Cache
+build/
+dist/
+*.nupkg
+.cache/
+.parcel-cache/
+
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Test
+coverage/
+test-results/
+.nyc_output/
+
+# Temp
+*.tmp
+tmp/
+temp/
+
+# DevGateway binaries (large, downloaded separately)
+tools/DevGateway/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+.eggs/
+venv/
+.venv/

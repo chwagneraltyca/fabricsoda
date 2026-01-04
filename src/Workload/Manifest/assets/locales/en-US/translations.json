@@ -1,0 +1,13 @@
+{
+    "Workload_Display_Name": "DQ Checker",
+    "Workload_Full_Display_Name": "Data Quality Checker",
+    "Workload_Description": "Data quality validation for Microsoft Fabric using Soda",
+    "Workload_Hub_Slogan": "Automated Data Quality Checks for Fabric",
+    "Workload_Hub_Description": "Define and execute data quality checks against your Fabric Data Warehouses using Soda Core.\n\nCreate checks for completeness, accuracy, uniqueness, validity, and freshness. Group checks into test cases and suites. Schedule automated scans and track results over time.\n\nSupports 22+ check templates including row counts, null checks, range validation, foreign key checks, custom SQL, and more.",
+    "Workload_Hub_GetStarted_1_Title": "Getting Started",
+    "Workload_Hub_GetStarted_1_Sub_Title": "Set up data quality checks in your workspace",
+    "Workload_Hub_GetStarted_1_Description": "Connect to your data sources, define check templates, create test cases, and run scans to validate data quality.",
+    "DQCheckerItem_DisplayName": "DQ Checker",
+    "DQCheckerItem_DisplayName_Plural": "DQ Checkers",
+    "DQCheckerItem_Description": "Data quality validation using Soda Core with 22+ check templates"
+}
