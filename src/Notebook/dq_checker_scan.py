@@ -759,12 +759,26 @@ def update_execution_log(conn, execution_log_id: int, counts: Dict, yaml_content
 def write_to_onelake(run_id: str, execution_log_id: int, suite_id: int,
                      scan_results: Dict, soda_logs: str, yaml_content: str,
                      counts: Dict) -> str:
-    """Write full results JSON to OneLake."""
+    """
+    Write full results JSON to OneLake with Hive-style partitioning.
+
+    Folder structure for partition elimination:
+        dq_logs/year=YYYY/month=MM/day=DD/execution_{run_id}.json
+
+    This allows efficient Spark queries like:
+        SELECT * FROM dq_results WHERE year = 2026 AND month = 1
+    """
+    now = datetime.utcnow()
+
     full_results = {
         "run_id": run_id,
         "execution_log_id": execution_log_id,
         "suite_id": suite_id,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": now.isoformat(),
+        # Partition keys (duplicated for easy access in JSON)
+        "year": now.year,
+        "month": now.month,
+        "day": now.day,
         "summary": counts,
         "scan_results": scan_results,
         "soda_logs": soda_logs,
@@ -773,7 +787,10 @@ def write_to_onelake(run_id: str, execution_log_id: int, suite_id: int,
 
     json_content = json.dumps(full_results, indent=2, default=str)
     file_name = f"execution_{run_id}.json"
-    log_path = f"{LAKEHOUSE_PATH}/{LOGS_FOLDER}/{file_name}"
+
+    # Hive-style partition path for Spark partition elimination
+    partition_path = f"year={now.year}/month={now.month:02d}/day={now.day:02d}"
+    log_path = f"{LAKEHOUSE_PATH}/{LOGS_FOLDER}/{partition_path}/{file_name}"
 
     # Write to OneLake using Fabric notebookutils
     notebookutils.fs.put(log_path, json_content, overwrite=True)
