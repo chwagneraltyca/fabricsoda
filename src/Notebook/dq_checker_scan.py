@@ -69,7 +69,7 @@ SUITE_ID = 1
 # METADATA DATABASE (Fabric SQL Database)
 # =============================================================================
 META_DB_SERVER = "yndfhalt62tejhuwlqaqhskcgu-n3hvjhr6avluxog2ch3jdnb5ya.database.fabric.microsoft.com"
-META_DB_NAME = "soda_db"  # Just the display name, not the full artifact ID
+META_DB_NAME = "soda_db-3dbb8254-b235-48a7-b66b-6b321f471b52"  # Full artifact name for pyodbc
 
 # =============================================================================
 # TARGET DATA WAREHOUSE (Fabric DWH - where data lives)
@@ -133,21 +133,32 @@ print("Secret loaded successfully!")
 # %% [markdown]
 # ## 4. Database Connection
 #
-# Connect to metadata SQL DB using notebookutils.data.connect_to_artifact() for automatic auth.
+# Connect to metadata SQL DB using pyodbc + Service Principal.
+# This approach requires SP to have db_datareader, db_datawriter, and EXECUTE permissions.
 
 # %%
 def get_metadata_connection():
     """
-    Connect to metadata SQL DB using Fabric notebookutils.
+    Connect to metadata SQL DB using pyodbc + Service Principal.
 
-    Uses notebookutils.data.connect_to_artifact() which handles authentication automatically.
-    No tokens required - Fabric handles identity seamlessly.
+    This approach uses direct database connection with Service Principal auth.
+    Requires SP to have database-level permissions (db_datareader, db_datawriter, EXECUTE).
+    Credentials are retrieved from Azure Key Vault via notebookutils.
+
+    Returns:
+        pyodbc.Connection: Database connection
     """
-    # Use Fabric's built-in artifact connection (no tokens needed!)
-    return notebookutils.data.connect_to_artifact(
-        META_DB_NAME,  # Can use name or ID
-        artifact_type="sqldatabase"
+    conn_str = (
+        f"Driver={{ODBC Driver 18 for SQL Server}};"
+        f"Server={META_DB_SERVER},1433;"
+        f"Database={META_DB_NAME};"
+        f"Authentication=ActiveDirectoryServicePrincipal;"
+        f"UID={CLIENT_ID};"
+        f"PWD={CLIENT_SECRET};"
+        f"Encrypt=yes;"
+        f"TrustServerCertificate=no;"
     )
+    return pyodbc.connect(conn_str)
 
 
 def get_dwh_config_yaml(auth_method: str = "sqlserver_spn") -> str:
@@ -234,7 +245,7 @@ def read_suite_checks(conn, suite_id: int) -> pd.DataFrame:
     Fetch enabled checks for suite execution.
 
     Args:
-        conn: Fabric connection (from notebookutils.data.connect_to_artifact)
+        conn: pyodbc.Connection
         suite_id: Suite to execute
 
     Returns:
@@ -247,19 +258,30 @@ def read_suite_checks(conn, suite_id: int) -> pd.DataFrame:
         WHERE st.suite_id = {suite_id} AND c.is_enabled = 1
         ORDER BY c.check_id
     """
-    return conn.query(query)
+    cursor = conn.cursor()
+    cursor.execute(query)
+    columns = [column[0] for column in cursor.description]
+    rows = cursor.fetchall()
+    return pd.DataFrame.from_records(rows, columns=columns)
 
 
 def create_execution_log(conn, run_id: str, suite_id: int) -> int:
     """
     Create execution log entry with status='running'.
 
+    Args:
+        conn: pyodbc.Connection
+        run_id: Unique run identifier
+        suite_id: Suite to execute
+
     Returns:
         execution_log_id
     """
-    query = f"EXEC sp_create_execution_log @run_id='{run_id}', @suite_id={suite_id}"
-    df = conn.query(query)
-    return int(df.iloc[0, 0])
+    cursor = conn.cursor()
+    cursor.execute(f"EXEC sp_create_execution_log @run_id='{run_id}', @suite_id={suite_id}")
+    execution_log_id = int(cursor.fetchone()[0])
+    conn.commit()
+    return execution_log_id
 
 # %% [markdown]
 # ## 6. Component: YAML Generator
@@ -688,6 +710,7 @@ def count_outcomes(results: List[Dict]) -> Dict[str, int]:
 # %%
 def write_results_to_db(conn, execution_log_id: int, run_id: str, results: List[Dict]):
     """Write individual check results to SQL DB via SP."""
+    cursor = conn.cursor()
     for r in results:
         # Escape single quotes in strings
         check_name = str(r['check_name']).replace("'", "''") if r['check_name'] else ''
@@ -702,12 +725,15 @@ def write_results_to_db(conn, execution_log_id: int, run_id: str, results: List[
             @check_name='{check_name}',
             @check_outcome='{outcome}',
             @check_value={check_value}"""
-        conn.query(query)
+        cursor.execute(query)
+        cursor.fetchone()  # Consume SP result
+    conn.commit()
 
 
 def update_execution_log(conn, execution_log_id: int, counts: Dict, yaml_content: str,
                          error_message: Optional[str] = None):
     """Update execution log with completion status via SP."""
+    cursor = conn.cursor()
     status = 'failed' if error_message else 'completed'
     has_failures = 1 if counts['failed'] > 0 else 0
 
@@ -726,7 +752,8 @@ def update_execution_log(conn, execution_log_id: int, counts: Dict, yaml_content
         @has_failures={has_failures},
         @generated_yaml='{yaml_escaped}',
         @error_message={error_param}"""
-    conn.query(query)
+    cursor.execute(query)
+    conn.commit()
 
 
 def write_to_onelake(run_id: str, execution_log_id: int, suite_id: int,
@@ -990,8 +1017,12 @@ def execute_suite(suite_id: int, run_id: str) -> Dict[str, Any]:
         raise
 
     finally:
-        # Fabric connections don't need explicit close
-        pass
+        # Close pyodbc connection
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 # %% [markdown]
 # ## 12. Run Scan
