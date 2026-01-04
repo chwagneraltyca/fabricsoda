@@ -21,7 +21,6 @@ import {
   tokens,
 } from '@fluentui/react-components';
 import { WarningRegular } from '@fluentui/react-icons';
-import { dqColors, dqTypography } from '../../../../styles/tokens';
 import { shorthands } from '@fluentui/react-components';
 
 const useStyles = makeStyles({
@@ -50,32 +49,33 @@ const useStyles = makeStyles({
 
   warningIcon: {
     fontSize: '36px',
-    color: dqColors.danger600,
+    color: tokens.colorPaletteRedForeground1,
   },
 
   title: {
-    fontSize: dqTypography.fontSizeLg,
-    fontWeight: dqTypography.fontWeightSemibold,
+    fontSize: tokens.fontSizeBase500,
+    fontWeight: tokens.fontWeightSemibold,
     color: tokens.colorNeutralForeground1,
-    marginBottom: tokens.spacingVerticalS,
     margin: 0,
+    marginTop: tokens.spacingVerticalS,
+    marginBottom: tokens.spacingVerticalS,
   },
 
   message: {
-    fontSize: dqTypography.fontSizeSm,
+    fontSize: tokens.fontSizeBase300,
     color: tokens.colorNeutralForeground2,
-    marginBottom: tokens.spacingVerticalXS,
     margin: 0,
     marginTop: tokens.spacingVerticalS,
+    marginBottom: tokens.spacingVerticalXS,
   },
 
   sourceName: {
-    fontWeight: dqTypography.fontWeightSemibold,
+    fontWeight: tokens.fontWeightSemibold,
     color: tokens.colorNeutralForeground1,
   },
 
   warning: {
-    fontSize: dqTypography.fontSizeXs,
+    fontSize: tokens.fontSizeBase200,
     color: tokens.colorNeutralForeground3,
     margin: 0,
     marginTop: tokens.spacingVerticalXS,
@@ -91,10 +91,11 @@ const useStyles = makeStyles({
   },
 
   deleteButton: {
-    backgroundColor: dqColors.danger600,
-    color: 'white',
+    backgroundColor: tokens.colorPaletteRedBackground3,
+    color: tokens.colorNeutralForegroundOnBrand,
+    transition: 'background-color 0.15s ease-out',
     '&:hover': {
-      backgroundColor: dqColors.danger700,
+      backgroundColor: tokens.colorPaletteRedForeground1,
     },
   },
 });

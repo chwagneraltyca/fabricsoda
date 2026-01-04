@@ -69,7 +69,7 @@ SUITE_ID = 1
 # METADATA DATABASE (Fabric SQL Database)
 # =============================================================================
 META_DB_SERVER = "yndfhalt62tejhuwlqaqhskcgu-n3hvjhr6avluxog2ch3jdnb5ya.database.fabric.microsoft.com"
-META_DB_NAME = "soda_db-3dbb8254-b235-48a7-b66b-6b321f471b52"
+META_DB_NAME = "soda_db"  # Just the display name, not the full artifact ID
 
 # =============================================================================
 # TARGET DATA WAREHOUSE (Fabric DWH - where data lives)

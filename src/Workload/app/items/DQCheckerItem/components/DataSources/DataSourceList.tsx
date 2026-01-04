@@ -29,7 +29,7 @@ import {
   PlugConnectedRegular,
 } from '@fluentui/react-icons';
 import { DataSource, DataSourceFormData } from '../../types/dataSource.types';
-import { dqTypography, useDataTableStyles } from '../../../../styles/tokens';
+import { useDataTableStyles } from '../../../../styles/tokens';
 import { DataSourceForm } from './DataSourceForm';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 
@@ -74,17 +74,18 @@ const useStyles = makeStyles({
   },
 
   pageTitle: {
-    fontSize: dqTypography.fontSize2xl,
-    fontWeight: dqTypography.fontWeightBold,
+    fontSize: tokens.fontSizeHero800,
+    fontWeight: tokens.fontWeightBold,
     color: tokens.colorNeutralForeground1,
     margin: 0,
-    lineHeight: '1.2',
+    lineHeight: tokens.lineHeightHero800,
   },
 
   pageSubtitle: {
-    fontSize: dqTypography.fontSizeSm,
+    fontSize: tokens.fontSizeBase300,
     color: tokens.colorNeutralForeground3,
     margin: 0,
+    marginTop: tokens.spacingVerticalXXS,
   },
 
   filterCard: {
@@ -97,11 +98,15 @@ const useStyles = makeStyles({
     display: 'flex',
     alignItems: 'center',
     gap: tokens.spacingHorizontalM,
+    transition: 'box-shadow 0.2s ease-out',
+    '&:hover': {
+      boxShadow: tokens.shadow8,
+    },
   },
 
   filterCount: {
     marginLeft: 'auto',
-    fontSize: dqTypography.fontSizeSm,
+    fontSize: tokens.fontSizeBase300,
     color: tokens.colorNeutralForeground3,
   },
 
@@ -111,6 +116,11 @@ const useStyles = makeStyles({
     boxShadow: tokens.shadow4,
     ...shorthands.border('1px', 'solid', tokens.colorNeutralStroke2),
     ...shorthands.overflow('hidden'),
+    transition: 'box-shadow 0.2s ease-out, transform 0.2s ease-out',
+    '&:hover': {
+      boxShadow: tokens.shadow8,
+      transform: 'translateY(-1px)',
+    },
   },
 
   // Empty state - follows Fabric UX pattern with larger icon
@@ -146,8 +156,9 @@ const useStyles = makeStyles({
     fontSize: tokens.fontSizeBase500,
     fontWeight: tokens.fontWeightSemibold,
     color: tokens.colorNeutralForeground1,
-    marginBottom: tokens.spacingVerticalS,
     margin: 0,
+    marginTop: tokens.spacingVerticalM,
+    marginBottom: tokens.spacingVerticalS,
   },
 
   emptyStateDescription: {
@@ -189,8 +200,10 @@ const useStyles = makeStyles({
 
   // Action button colors - Fabric tokens with semantic colors on hover
   // Per UX Design Proposal: neutral by default, semantic colors on hover
+  // Added transitions for professional polish
   actionSuccess: {
     color: tokens.colorNeutralForeground2,
+    transition: 'color 0.15s ease-out, background-color 0.15s ease-out',
     '&:hover': {
       color: tokens.colorPaletteGreenForeground1,
       backgroundColor: tokens.colorPaletteGreenBackground1,
@@ -199,6 +212,7 @@ const useStyles = makeStyles({
 
   actionWarning: {
     color: tokens.colorNeutralForeground2,
+    transition: 'color 0.15s ease-out, background-color 0.15s ease-out',
     '&:hover': {
       color: tokens.colorPaletteYellowForeground1,
       backgroundColor: tokens.colorPaletteYellowBackground1,
@@ -207,6 +221,7 @@ const useStyles = makeStyles({
 
   actionPrimary: {
     color: tokens.colorNeutralForeground2,
+    transition: 'color 0.15s ease-out, background-color 0.15s ease-out',
     '&:hover': {
       color: tokens.colorBrandForeground1,
       backgroundColor: tokens.colorBrandBackground2,
@@ -215,6 +230,7 @@ const useStyles = makeStyles({
 
   actionDanger: {
     color: tokens.colorNeutralForeground2,
+    transition: 'color 0.15s ease-out, background-color 0.15s ease-out',
     '&:hover': {
       color: tokens.colorPaletteRedForeground1,
       backgroundColor: tokens.colorPaletteRedBackground1,

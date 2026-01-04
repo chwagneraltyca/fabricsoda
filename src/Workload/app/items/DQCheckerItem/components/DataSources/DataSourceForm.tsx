@@ -32,7 +32,6 @@ import {
   defaultDataSourceFormData,
   dataSourceValidation,
 } from '../../types/dataSource.types';
-import { dqTypography } from '../../../../styles/tokens';
 
 // Styles matching legacy design with Fabric UX improvements
 const useStyles = makeStyles({
@@ -55,14 +54,16 @@ const useStyles = makeStyles({
   },
 
   title: {
-    fontSize: dqTypography.fontSizeXl,
-    fontWeight: dqTypography.fontWeightBold,
+    fontSize: tokens.fontSizeHero700,
+    fontWeight: tokens.fontWeightBold,
     color: tokens.colorNeutralForeground1,
     margin: 0,
+    lineHeight: tokens.lineHeightHero700,
   },
 
   closeButton: {
     color: tokens.colorNeutralForeground3,
+    transition: 'color 0.15s ease-out, background-color 0.15s ease-out',
     '&:hover': {
       color: tokens.colorNeutralForeground1,
       backgroundColor: tokens.colorNeutralBackground1Hover,
@@ -81,9 +82,11 @@ const useStyles = makeStyles({
   },
 
   fieldLabel: {
-    fontWeight: dqTypography.fontWeightMedium,
-    fontSize: dqTypography.fontSizeSm,
+    fontWeight: tokens.fontWeightSemibold,
+    fontSize: tokens.fontSizeBase200,
     color: tokens.colorNeutralForeground2,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
   },
 
   required: {
@@ -100,9 +103,9 @@ const useStyles = makeStyles({
   },
 
   hint: {
-    fontSize: dqTypography.fontSizeXs,
+    fontSize: tokens.fontSizeBase200,
     color: tokens.colorNeutralForeground3,
-    marginTop: '4px',
+    marginTop: tokens.spacingVerticalXXS,
   },
 
   switchRow: {
@@ -113,7 +116,7 @@ const useStyles = makeStyles({
   },
 
   switchLabel: {
-    fontSize: dqTypography.fontSizeSm,
+    fontSize: tokens.fontSizeBase300,
     color: tokens.colorNeutralForeground2,
   },
 
@@ -133,8 +136,8 @@ const useStyles = makeStyles({
 
   errorMessage: {
     color: tokens.colorPaletteRedForeground1,
-    fontSize: dqTypography.fontSizeXs,
-    marginTop: '4px',
+    fontSize: tokens.fontSizeBase200,
+    marginTop: tokens.spacingVerticalXXS,
   },
 
   formError: {
@@ -142,7 +145,7 @@ const useStyles = makeStyles({
     color: tokens.colorPaletteRedForeground1,
     ...shorthands.padding(tokens.spacingVerticalS, tokens.spacingHorizontalM),
     ...shorthands.borderRadius(tokens.borderRadiusMedium),
-    fontSize: dqTypography.fontSizeSm,
+    fontSize: tokens.fontSizeBase300,
     marginBottom: tokens.spacingVerticalM,
   },
 });
