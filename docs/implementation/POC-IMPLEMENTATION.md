@@ -598,6 +598,32 @@ SELECT * FROM dbo.vw_checks_complete WHERE check_id = @id;
 
 ---
 
+## Implemented Components
+
+### Settings & Help (Outer Fabric Toolbar)
+
+Following MS Fabric SDK patterns, Settings/About/Help pages render in Fabric's outer toolbar (not iframe):
+
+| Page | Route | Component | Status |
+|------|-------|-----------|--------|
+| About | `/DQCheckerItem-about/:id` | `DQCheckerItemAbout.tsx` | ✅ Done |
+| Preferences | `/DQCheckerItem-settings/:id` | `DQCheckerItemSettings.tsx` | ✅ Done |
+| Help | Dialog in editor | `DQCheckerItemHelp.tsx` | ✅ Done |
+
+**Implementation Pattern:**
+1. Item manifest declares `itemSettings` with `getItemSettings` action
+2. Worker handler returns tab definitions with routes
+3. Fabric renders pages in Settings dialog
+4. Routes configured in `App.tsx`
+
+**Preferences Settings (migrated from legacy Flask):**
+- Default Owner (email)
+- Default Severity (critical/high/medium/low)
+- Default DQ Dimension (completeness/accuracy/consistency/validity/uniqueness/timeliness)
+- Default Tags (comma-separated)
+
+---
+
 ## Next Steps After POC
 
 If POC successful:

@@ -127,6 +127,38 @@ erDiagram
         string data_type
         datetime refreshed_at
     }
+
+    dq_execution_logs {
+        bigint execution_log_id PK
+        string run_id
+        int suite_id FK
+        int source_id FK
+        string execution_type
+        string execution_status
+        int total_checks
+        int checks_passed
+        int checks_failed
+        int checks_warned
+        bit has_failures
+        string error_message
+        string generated_yaml
+        datetime created_at
+    }
+
+    dq_results {
+        int result_id PK
+        string run_id
+        bigint execution_log_id FK
+        int check_id FK
+        string check_name
+        string check_outcome
+        decimal check_value
+        datetime created_at
+    }
+
+    dq_suites ||--o{ dq_execution_logs : "executes"
+    dq_execution_logs ||--o{ dq_results : "produces"
+    dq_checks ||--o{ dq_results : "measured by"
 ```
 
 ## ASCII Diagram

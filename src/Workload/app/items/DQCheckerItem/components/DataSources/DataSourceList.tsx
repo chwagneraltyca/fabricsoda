@@ -25,9 +25,10 @@ import {
   Delete24Regular,
   ArrowSwap24Regular,
   Flash24Regular,
+  Database24Regular,
 } from '@fluentui/react-icons';
 import { DataSource, DataSourceFormData } from '../../types/dataSource.types';
-import { dqColors, dqTypography, useDataTableStyles } from '../../../../styles/tokens';
+import { dqTypography, useDataTableStyles } from '../../../../styles/tokens';
 import { DataSourceForm } from './DataSourceForm';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 
@@ -91,10 +92,35 @@ const useStyles = makeStyles({
     ...shorthands.overflow('hidden'),
   },
 
+  // Empty state - follows Fabric UX pattern
   emptyState: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
     textAlign: 'center' as const,
     ...shorthands.padding(tokens.spacingVerticalXXL, tokens.spacingHorizontalL),
+    minHeight: '300px',
+  },
+
+  emptyStateIcon: {
+    fontSize: '48px',
+    color: tokens.colorNeutralForeground4,
+    marginBottom: tokens.spacingVerticalM,
+  },
+
+  emptyStateTitle: {
+    fontSize: tokens.fontSizeBase400,
+    fontWeight: tokens.fontWeightSemibold,
+    color: tokens.colorNeutralForeground1,
+    marginBottom: tokens.spacingVerticalS,
+  },
+
+  emptyStateDescription: {
+    fontSize: tokens.fontSizeBase300,
     color: tokens.colorNeutralForeground3,
+    marginBottom: tokens.spacingVerticalL,
+    maxWidth: '320px',
   },
 
   actionsCell: {
@@ -103,20 +129,20 @@ const useStyles = makeStyles({
     gap: tokens.spacingHorizontalXS,
   },
 
-  // Badge variants matching legacy
+  // Badge variants using Fabric tokens
   badgeActive: {
-    backgroundColor: dqColors.success100,
-    color: dqColors.success700,
+    backgroundColor: tokens.colorPaletteGreenBackground1,
+    color: tokens.colorPaletteGreenForeground1,
   },
 
   badgeInactive: {
-    backgroundColor: dqColors.gray100,
-    color: dqColors.gray700,
+    backgroundColor: tokens.colorNeutralBackground3,
+    color: tokens.colorNeutralForeground2,
   },
 
   badgeType: {
-    backgroundColor: dqColors.primary100,
-    color: dqColors.primary700,
+    backgroundColor: tokens.colorBrandBackground2,
+    color: tokens.colorBrandForeground1,
   },
 
   loadingOverlay: {
@@ -126,36 +152,37 @@ const useStyles = makeStyles({
     ...shorthands.padding(tokens.spacingVerticalXXL),
   },
 
-  // Action button colors (matches legacy btn-link-*)
+  // Action button colors - Fabric tokens with semantic colors on hover
+  // Per UX Design Proposal: neutral by default, semantic colors on hover
   actionSuccess: {
-    color: dqColors.success600,
+    color: tokens.colorNeutralForeground2,
     '&:hover': {
-      color: dqColors.success700,
-      backgroundColor: dqColors.success50,
+      color: tokens.colorPaletteGreenForeground1,
+      backgroundColor: tokens.colorPaletteGreenBackground1,
     },
   },
 
   actionWarning: {
-    color: dqColors.warning600,
+    color: tokens.colorNeutralForeground2,
     '&:hover': {
-      color: dqColors.warning700,
-      backgroundColor: dqColors.warning50,
+      color: tokens.colorPaletteYellowForeground1,
+      backgroundColor: tokens.colorPaletteYellowBackground1,
     },
   },
 
   actionPrimary: {
-    color: dqColors.primary600,
+    color: tokens.colorNeutralForeground2,
     '&:hover': {
-      color: dqColors.primary700,
-      backgroundColor: dqColors.primary50,
+      color: tokens.colorBrandForeground1,
+      backgroundColor: tokens.colorBrandBackground2,
     },
   },
 
   actionDanger: {
-    color: dqColors.danger600,
+    color: tokens.colorNeutralForeground2,
     '&:hover': {
-      color: dqColors.danger700,
-      backgroundColor: dqColors.danger50,
+      color: tokens.colorPaletteRedForeground1,
+      backgroundColor: tokens.colorPaletteRedBackground1,
     },
   },
 });
@@ -297,7 +324,18 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
           </div>
         ) : filteredSources.length === 0 ? (
           <div className={styles.emptyState}>
-            No connections found. Click "Add Connection" to create one.
+            <Database24Regular className={styles.emptyStateIcon} />
+            <div className={styles.emptyStateTitle}>No connections yet</div>
+            <div className={styles.emptyStateDescription}>
+              Add a database connection to start running data quality checks on your Fabric Warehouse.
+            </div>
+            <Button
+              appearance="secondary"
+              icon={<Add24Regular />}
+              onClick={handleOpenCreate}
+            >
+              Add Connection
+            </Button>
           </div>
         ) : (
           <table className={tableStyles.table}>

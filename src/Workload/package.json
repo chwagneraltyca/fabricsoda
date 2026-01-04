@@ -38,8 +38,10 @@
     "uuid": "^11.0.5"
   },
   "devDependencies": {
+    "@types/history": "^4.7.11",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
+    "@types/react-router-dom": "^5.3.3",
     "clean-webpack-plugin": "^4.0.0",
     "copy-webpack-plugin": "^10.0.0",
     "css-loader": "^6.5.1",

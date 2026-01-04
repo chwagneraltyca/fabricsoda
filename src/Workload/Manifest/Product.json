@@ -15,7 +15,7 @@
           "introduction": "Workload_Hub_GetStarted_1_Sub_Title",
           "description": "Workload_Hub_GetStarted_1_Description",
           "image": "assets/images/Workload_Hub_GetStarted_1.png",
-          "link": "#"
+          "link": "https://github.com/your-org/dq-checker"
         }
       ],
       "newSection": {
@@ -66,12 +66,12 @@
         }
       ],
         "supportLink": {
-          "documentation": {"url": "#"},
-          "certification": {"url": "#"},
-          "help": {"url": "#"},
-          "privacy": {"url": "#"},
-          "terms": {"url": "#"},
-          "license": {"url": "#"}
+          "documentation": {"url": "https://github.com/your-org/dq-checker"},
+          "certification": {"url": "https://github.com/your-org/dq-checker"},
+          "help": {"url": "https://github.com/your-org/dq-checker"},
+          "privacy": {"url": "https://github.com/your-org/dq-checker"},
+          "terms": {"url": "https://github.com/your-org/dq-checker"},
+          "license": {"url": "https://github.com/your-org/dq-checker"}
       }
     },
     "itemJobTypes" :["storeData", "others"],

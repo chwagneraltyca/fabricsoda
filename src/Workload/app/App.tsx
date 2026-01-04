@@ -4,7 +4,11 @@ import { History } from "history";
 import { WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { FluentProvider } from "@fluentui/react-components";
 import { fabricLightTheme } from "./theme";
-import { DQCheckerItemEditor } from "./items/DQCheckerItem";
+import {
+    DQCheckerItemEditor,
+    DQCheckerItemAbout,
+    DQCheckerItemSettings,
+} from "./items/DQCheckerItem";
 
 /*
     DQ Checker - Data Quality Workload
@@ -54,6 +58,14 @@ export function App({ history, workloadClient }: AppProps) {
                             workloadClient={workloadClient}
                             data-testid="DQCheckerItem-editor"
                         />
+                    </Route>
+                    {/* DQ Checker Item About Page (Settings Dialog - outer Fabric toolbar) */}
+                    <Route path="/DQCheckerItem-about/:itemObjectId">
+                        <DQCheckerItemAbout />
+                    </Route>
+                    {/* DQ Checker Item Settings/Preferences (Settings Dialog - outer Fabric toolbar) */}
+                    <Route path="/DQCheckerItem-settings/:itemObjectId">
+                        <DQCheckerItemSettings workloadClient={workloadClient} />
                     </Route>
                 </Switch>
             </Router>

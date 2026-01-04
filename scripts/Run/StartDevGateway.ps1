@@ -3,6 +3,12 @@ param (
 )
 
 ################################################
+# Detect OS (works in both PowerShell 5.1 and PowerShell Core)
+################################################
+$isWindowsOS = ($PSVersionTable.PSEdition -eq 'Desktop') -or ($env:OS -eq 'Windows_NT') -or $IsWindows
+$isMacOSOS = $IsMacOS -eq $true
+
+################################################
 # Make sure Manifest is built
 ################################################
 # Run BuildManifestPackage.ps1 with absolute path
@@ -19,10 +25,10 @@ if (Test-Path $buildManifestPackageScript) {
 # Starting the Frontend
 ################################################
 $fileExe = ""
-if($IsWindows) {
-    $fileExe = Join-Path $PSScriptRoot "..\tools\DevGateway\Microsoft.Fabric.Workload.DevGateway.exe"
+if($isWindowsOS) {
+    $fileExe = Join-Path $PSScriptRoot "..\..\tools\DevGateway\Microsoft.Fabric.Workload.DevGateway.exe"
 } else {
-    $fileExe = Join-Path $PSScriptRoot "..\tools\DevGateway\Microsoft.Fabric.Workload.DevGateway.dll"
+    $fileExe = Join-Path $PSScriptRoot "..\..\tools\DevGateway\Microsoft.Fabric.Workload.DevGateway.dll"
 }
 
 $CONFIGURATIONFILE = Resolve-Path -Path (Join-Path $PSScriptRoot "..\..\build\DevGateway\workload-dev-mode.json")
@@ -32,7 +38,7 @@ Write-Host "Configuration xsfile used: $CONFIGURATIONFILE"
 
 $token = ""
 # When InteractiveLogin is false, always use az commands for authentication
-if (-not $InteractiveLogin -or $env:CODESPACES -eq "true" -or $IsMacOS) {
+if (-not $InteractiveLogin -or $env:CODESPACES -eq "true" -or $isMacOSOS) {
     Write-Host "Using non-interactive authentication via az CLI..." -ForegroundColor Green
     
     # Check if already logged in
@@ -53,7 +59,7 @@ $devWorkspaceId = $config.WorkspaceGuid
 $logLevel = "Information"
 
 
-if($IsWindows) { 
+if($isWindowsOS) {
     if ($InteractiveLogin -and [string]::IsNullOrEmpty($token)) {
         # Use interactive mode only when explicitly requested and no token available
         Write-Host "Starting DevGateway in interactive mode..." -ForegroundColor Green

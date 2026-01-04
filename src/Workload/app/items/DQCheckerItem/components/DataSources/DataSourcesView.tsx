@@ -54,6 +54,7 @@ export const DataSourcesView: React.FC = () => {
       const timer = setTimeout(() => setNotification(null), 5000);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [notification]);
 
   // Load data sources

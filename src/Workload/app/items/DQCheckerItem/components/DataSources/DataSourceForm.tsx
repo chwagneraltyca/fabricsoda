@@ -10,7 +10,6 @@
 import React, { useState, useCallback } from 'react';
 import {
   Dialog,
-  DialogTrigger,
   DialogSurface,
   DialogTitle,
   DialogBody,

@@ -1,0 +1,33 @@
+{
+    "name": "DQChecker",
+    "version": "1.100",
+    "displayName": "DQCheckerItem_DisplayName",
+    "displayNamePlural": "DQCheckerItem_DisplayName_Plural",
+    "description": "DQCheckerItem_Description",
+    "shortDescription": "DQCheckerItem_Description",
+    "editor": {
+        "path": "/DQCheckerItem-editor"
+    },
+    "icon": {
+        "name": "assets/images/DQCheckerItem_Icon.png"
+    },
+    "activeIcon": {
+        "name": "assets/images/DQCheckerItem_Icon.png"
+    },
+    "contextMenuItems": [],
+    "quickActionItems": [],
+    "supportedInMonitoringHub": true,
+    "supportedInDatahubL1": true,
+    "itemJobActionConfig": {},
+    "editorTab": {
+        "onDeactivate": "item.tab.onDeactivate",
+        "canDeactivate": "item.tab.canDeactivate",
+        "canDestroy": "item.tab.canDestroy",
+        "onDestroy": "item.tab.onDestroy",
+        "onDelete": "item.tab.onDelete"
+    },
+    "createItemDialogConfig": {
+        "onCreationFailure": { "action": "item.onCreationFailure" },
+        "onCreationSuccess": { "action": "item.onCreationSuccess" }
+    }
+}

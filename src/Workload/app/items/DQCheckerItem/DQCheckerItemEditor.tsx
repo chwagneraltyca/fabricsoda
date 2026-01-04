@@ -12,7 +12,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { WorkloadClientAPI } from '@ms-fabric/workload-client';
+import { WorkloadClientAPI, ItemTag } from '@ms-fabric/workload-client';
 import {
   Spinner,
   makeStyles,
@@ -32,11 +32,15 @@ import {
 import { DataSourcesView } from './components/DataSources';
 import { initGraphQLClient } from './services';
 import {
-  DatabaseMultiple24Regular,
+  Database24Regular,
   TaskListSquareLtr24Regular,
   ChartMultiple24Regular,
   ArrowSync24Regular,
+  Settings24Regular,
+  Question24Regular,
 } from '@fluentui/react-icons';
+import { callOpenSettings } from '../../controller/SettingsController';
+import { DQCheckerItemHelp } from './DQCheckerItemHelp';
 
 const useStyles = makeStyles({
   loadingContainer: {
@@ -103,7 +107,7 @@ interface TabDefinition {
 }
 
 const tabs: TabDefinition[] = [
-  { id: 'data-sources', label: 'Data Sources', icon: <DatabaseMultiple24Regular /> },
+  { id: 'data-sources', label: 'Data Sources', icon: <Database24Regular /> },
   { id: 'checks', label: 'Checks', icon: <TaskListSquareLtr24Regular /> },
   { id: 'results', label: 'Results', icon: <ChartMultiple24Regular /> },
 ];
@@ -165,11 +169,15 @@ export const DQCheckerItemEditor: React.FC<DQCheckerItemEditorProps> = ({
   workloadClient,
 }) => {
   const styles = useStyles();
+  // itemObjectId is used for item-specific data loading and settings
   const { itemObjectId } = useParams<{ itemObjectId: string }>();
 
   // Initialization state
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
+
+  // Help dialog state
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   // Initialize the GraphQL client on mount
   useEffect(() => {
@@ -213,17 +221,53 @@ export const DQCheckerItemEditor: React.FC<DQCheckerItemEditorProps> = ({
     },
   ];
 
+  // Handle opening settings dialog in outer Fabric toolbar
+  const handleOpenSettings = async () => {
+    if (!itemObjectId) return;
+
+    // Create minimal Item object for settings dialog
+    const item = {
+      id: itemObjectId,
+      workspaceId: '', // Will be filled by Fabric
+      type: `${process.env.WORKLOAD_NAME}.DQChecker`,
+      displayName: 'DQ Checker',
+      description: '',
+      folderId: '',
+      tags: [] as ItemTag[],
+    };
+
+    try {
+      await callOpenSettings(workloadClient, item, 'customItemSettings');
+    } catch (error) {
+      console.error('Failed to open settings:', error);
+    }
+  };
+
   // Ribbon actions for Home tab
   const homeActions: RibbonAction[] = [
     {
       key: 'refresh',
-      icon: <ArrowSync24Regular />,
+      icon: ArrowSync24Regular,
       label: 'Refresh',
       tooltip: 'Refresh data',
       onClick: () => {
         // Trigger refresh - this would be connected to the DataSourcesView
         window.location.reload();
       },
+    },
+    {
+      key: 'settings',
+      icon: Settings24Regular,
+      label: 'Settings',
+      tooltip: 'Open preferences (outer Fabric toolbar)',
+      onClick: handleOpenSettings,
+    },
+    {
+      key: 'help',
+      icon: Question24Regular,
+      label: 'Help',
+      tooltip: 'Open help guide',
+      onClick: () => setIsHelpOpen(true),
     },
   ];
 
@@ -236,11 +280,18 @@ export const DQCheckerItemEditor: React.FC<DQCheckerItemEditorProps> = ({
   );
 
   return (
-    <ItemEditor
-      ribbon={renderRibbon}
-      views={views}
-      initialView="main"
-    />
+    <>
+      <ItemEditor
+        ribbon={renderRibbon}
+        views={views}
+        initialView="main"
+      />
+      {/* Help Dialog */}
+      <DQCheckerItemHelp
+        open={isHelpOpen}
+        onClose={() => setIsHelpOpen(false)}
+      />
+    </>
   );
 };
 

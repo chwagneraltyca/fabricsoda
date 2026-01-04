@@ -305,12 +305,96 @@ const checkFormSchema = z.object({
 | Run Scan | Play | Execute enabled checks | Scans view |
 | Export YAML | DocumentArrowDown | Export selected checks as YAML | Checks view |
 
-## Settings Panel
+## Settings & Help (Outer Fabric Toolbar)
 
-Tabs:
-1. **Connection** - GraphQL endpoint, demo mode toggle
-2. **Defaults** - Default owner, severity, dimension
-3. **Display** - Items per page, date format
+Settings and Help pages render in Fabric's outer toolbar (Settings dialog), not inside the iframe editor. This follows MS Fabric SDK patterns for workload settings.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    FABRIC SHELL (Outer)                      │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │ Settings Dialog (workloadClient.itemSettings.open)      ││
+│  │  ┌──────────┐  ┌─────────────┐                          ││
+│  │  │  About   │  │ Preferences │  ← Custom tabs           ││
+│  │  └────┬─────┘  └──────┬──────┘                          ││
+│  └───────┼───────────────┼─────────────────────────────────┘│
+└──────────┼───────────────┼──────────────────────────────────┘
+           │               │
+           ▼               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                     iFrame Routes                             │
+│  /DQCheckerItem-about/:id    → DQCheckerItemAbout.tsx        │
+│  /DQCheckerItem-settings/:id → DQCheckerItemSettings.tsx     │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Implementation
+
+1. **Item Manifest** (`DQCheckerItem.json`):
+```json
+"itemSettings": {
+    "getItemSettings": {
+        "action": "getItemSettings"
+    }
+}
+```
+
+2. **Worker Handler** (`index.worker.ts`):
+```typescript
+case 'getItemSettings': {
+    return [
+        { name: 'about', displayName: 'About', workloadSettingLocation: { route: '/DQCheckerItem-about/:id' } },
+        { name: 'customItemSettings', displayName: 'Preferences', workloadSettingLocation: { route: '/DQCheckerItem-settings/:id' } }
+    ];
+}
+```
+
+3. **Routes** (`App.tsx`):
+```typescript
+<Route path="/DQCheckerItem-about/:itemObjectId" element={<DQCheckerItemAbout />} />
+<Route path="/DQCheckerItem-settings/:itemObjectId" element={<DQCheckerItemSettings />} />
+```
+
+### About Page (`DQCheckerItemAbout.tsx`)
+
+Displays version info, documentation links, and support resources:
+- Version Information (version, build, status)
+- About DQ Checker (description)
+- Documentation Links (Soda Docs, Fabric Docs)
+- Support Links (Report Issue, Community)
+- Supported Check Types (20 metrics)
+
+### Preferences Page (`DQCheckerItemSettings.tsx`)
+
+Migrated from Legacy `flask_app/blueprints/settings.py`:
+- **Default Owner** - Email of check owner
+- **Default Severity** - critical/high/medium/low
+- **Default DQ Dimension** - completeness/accuracy/consistency/validity/uniqueness/timeliness
+- **Default Tags** - Comma-separated tags
+
+Settings stored in item definition via `saveWorkloadItem()`.
+
+### Help Dialog (`DQCheckerItemHelp.tsx`)
+
+In-editor help dialog (FluentUI Dialog), opened via ribbon button:
+- Quick Start Accordion (5 steps)
+- Supported Check Types
+- Documentation Links
+
+### Ribbon Settings Button
+
+```typescript
+{
+  key: 'settings',
+  icon: Settings24Regular,
+  tooltip: 'Open preferences (outer Fabric toolbar)',
+  onClick: () => callOpenSettings(workloadClient, item, 'customItemSettings'),
+}
+```
+
+Uses `callOpenSettings()` from `SettingsController.ts` to open Fabric's Settings dialog.
 
 ## Files Structure
 
