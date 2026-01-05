@@ -41,6 +41,7 @@ import { FabricAuthenticationService } from '../../clients/FabricAuthenticationS
 import { FABRIC_BASE_SCOPES } from '../../clients/FabricPlatformScopes';
 import { getWorkloadItem, saveWorkloadItem, ItemWithDefinition } from '../../controller/ItemCRUDController';
 import { PageProps } from '../../App';
+import { useDebugLog } from '../../context';
 
 const useStyles = makeStyles({
     container: {
@@ -166,6 +167,7 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
     workloadClient,
 }) => {
     const styles = useStyles();
+    const log = useDebugLog('DQCheckerItemSettings');
     const { itemObjectId } = useParams<{ itemObjectId: string }>();
 
     // State - following Data Lineage pattern for Fabric persistence
@@ -182,10 +184,10 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
 
     // Load settings from Fabric item definition (same pattern as Data Lineage)
     const loadSettings = useCallback(async () => {
-        console.log('[Settings] loadSettings called, itemObjectId:', itemObjectId);
+        log.info('loadSettings called', { itemObjectId });
 
         if (!itemObjectId) {
-            console.error('[Settings] No itemObjectId in URL');
+            log.error('No itemObjectId in URL');
             setMessage({ type: 'error', text: 'No item ID in URL. Please reopen Settings from item editor.' });
             setIsLoading(false);
             return;
@@ -194,16 +196,16 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
         setIsLoading(true);
         try {
             // Load from Fabric backend via ItemCRUDController
-            console.log('[Settings] Calling getWorkloadItem for:', itemObjectId);
+            log.info('Calling getWorkloadItem', { itemObjectId });
             const loadedItem = await getWorkloadItem<DQCheckerSettings>(
                 workloadClient,
                 itemObjectId,
                 DEFAULT_SETTINGS  // fallback if no saved definition
             );
-            console.log('[Settings] Loaded item:', loadedItem);
+            log.info('Loaded item', { id: loadedItem.id, hasDefinition: !!loadedItem.definition });
 
             if (!loadedItem.id) {
-                console.error('[Settings] Item loaded but has no ID - fetch may have failed');
+                log.error('Item loaded but has no ID - fetch may have failed');
                 setMessage({ type: 'error', text: 'Failed to load item. Check console for details.' });
                 setIsLoading(false);
                 return;
@@ -215,13 +217,13 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
                 setSettings({ ...DEFAULT_SETTINGS, ...loadedItem.definition });
             }
         } catch (error) {
-            console.error('[Settings] Failed to load settings from Fabric:', error);
+            log.error('Failed to load settings from Fabric', { error: error instanceof Error ? error.message : String(error) });
             // Keep default settings on error
             setMessage({ type: 'error', text: 'Failed to load settings from Fabric' });
         } finally {
             setIsLoading(false);
         }
-    }, [workloadClient, itemObjectId]);
+    }, [workloadClient, itemObjectId, log]);
 
     useEffect(() => {
         loadSettings();
@@ -229,16 +231,16 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
 
     // Save settings to Fabric item definition (same pattern as Data Lineage)
     const handleSave = async () => {
-        console.log('[Settings] handleSave called, item:', item);
+        log.info('handleSave called', { itemId: item?.id, hasItem: !!item });
 
         if (!item) {
-            console.error('[Settings] Cannot save: item is null');
+            log.error('Cannot save: item is null');
             setMessage({ type: 'error', text: 'Cannot save: item not loaded. Try reloading the page.' });
             return;
         }
 
         if (!item.id) {
-            console.error('[Settings] Cannot save: item has no ID', item);
+            log.error('Cannot save: item has no ID', { item });
             setMessage({ type: 'error', text: 'Cannot save: item has no ID. Item may not have loaded correctly.' });
             return;
         }
@@ -246,7 +248,7 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
         setIsSaving(true);
         setMessage(null);
         try {
-            console.log('[Settings] Calling saveWorkloadItem with:', { ...item, definition: settings });
+            log.info('Calling saveWorkloadItem', { itemId: item.id, settings });
             // Save to Fabric backend via ItemCRUDController
             await saveWorkloadItem<DQCheckerSettings>(workloadClient, {
                 ...item,
@@ -256,10 +258,11 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
             // Small delay to ensure Fabric has committed the change (eventual consistency)
             await new Promise(resolve => setTimeout(resolve, 500));
 
+            log.info('Settings saved successfully');
             setMessage({ type: 'success', text: 'Settings saved to Fabric successfully' });
             setIsDirty(false);
         } catch (error) {
-            console.error('[Settings] Failed to save settings to Fabric:', error);
+            log.error('Failed to save settings to Fabric', { error: error instanceof Error ? error.message : String(error) });
             const errorMsg = error instanceof Error ? error.message : String(error);
             setMessage({ type: 'error', text: `Failed to save: ${errorMsg}` });
         } finally {
@@ -290,6 +293,7 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
 
     // Test GraphQL connection with Fabric authentication
     // Pattern from working data lineage project: fabric-datalineage/LineageService.ts
+    // Simplified: no intermediate status messages, just testing state + final result
     const handleTestConnection = async () => {
         if (!settings.graphqlEndpoint) {
             setConnectionTest({
@@ -307,29 +311,13 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
             return;
         }
 
-        setConnectionTest({ status: 'testing', message: 'Authenticating with Fabric...' });
+        // Simple testing state - no intermediate messages (like Data Lineage)
+        setConnectionTest({ status: 'testing', message: '' });
 
         try {
             // Acquire token using Fabric authentication (same pattern as LineageService)
             const authService = new FabricAuthenticationService(workloadClient);
-
-            let token: string;
-            try {
-                const tokenResult = await authService.acquireAccessToken(FABRIC_BASE_SCOPES.POWERBI_API);
-                token = tokenResult.token;
-            } catch (tokenError: unknown) {
-                // Handle token errors with detailed message
-                const errorMsg = tokenError instanceof Error
-                    ? tokenError.message
-                    : JSON.stringify(tokenError);
-                setConnectionTest({
-                    status: 'error',
-                    message: `Failed to acquire access token: ${errorMsg}`,
-                });
-                return;
-            }
-
-            setConnectionTest({ status: 'testing', message: 'Testing GraphQL connection...' });
+            const tokenResult = await authService.acquireAccessToken(FABRIC_BASE_SCOPES.POWERBI_API);
 
             // Query to verify dq_sources table exists (DQ Checker specific)
             const testQuery = `
@@ -347,7 +335,7 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
+                    'Authorization': `Bearer ${tokenResult.token}`,
                 },
                 body: JSON.stringify({ query: testQuery }),
             });
@@ -357,6 +345,7 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
                 setConnectionTest({
                     status: 'error',
                     message: `GraphQL request failed (${response.status}): ${errorText.substring(0, 100)}`,
+                    lastTested: new Date(),
                 });
                 return;
             }
@@ -396,11 +385,12 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
             });
 
         } catch (error: unknown) {
-            // Handle fetch errors (network, CORS, etc.)
+            // Handle fetch/auth errors (network, CORS, token, etc.)
             const errorMessage = error instanceof Error ? error.message : String(error);
             setConnectionTest({
                 status: 'error',
                 message: `Connection failed: ${errorMessage}`,
+                lastTested: new Date(),
             });
         }
     };
@@ -468,22 +458,19 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
                         </Button>
                     </div>
 
-                    {connectionTest.status !== 'idle' && (
+                    {/* Only show result card after test completes (not during testing) */}
+                    {(connectionTest.status === 'success' || connectionTest.status === 'error') && (
                         <div
                             className={`${styles.connectionStatus} ${
                                 connectionTest.status === 'success'
                                     ? styles.connectionSuccess
-                                    : connectionTest.status === 'error'
-                                    ? styles.connectionError
-                                    : styles.connectionPending
+                                    : styles.connectionError
                             }`}
                         >
                             {connectionTest.status === 'success' ? (
                                 <Checkmark24Regular />
-                            ) : connectionTest.status === 'error' ? (
-                                <Dismiss24Regular />
                             ) : (
-                                <Spinner size="tiny" />
+                                <Dismiss24Regular />
                             )}
                             <Text size={200}>{connectionTest.message}</Text>
                         </div>

@@ -19,6 +19,7 @@
     "@monaco-editor/react": "^4.7.0",
     "@ms-fabric/workload-client": "^3.0.0",
     "@reduxjs/toolkit": "^2.6.0",
+    "@tanstack/react-query": "^5.90.16",
     "@types/dagre": "^0.7.53",
     "dagre": "^0.8.5",
     "graphology": "^0.26.0",

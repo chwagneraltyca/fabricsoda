@@ -37,6 +37,7 @@ import {
 import { DataSourcesView } from './components/DataSources';
 import { initGraphQLClient } from './services';
 import { getWorkloadItem } from '../../controller/ItemCRUDController';
+import { WorkloadClientProvider, DebugLoggerProvider, useDebugLog, useDebugLogContext } from '../../context';
 import { DQCheckerSettings } from './DQCheckerItemSettings';
 import {
   Database24Regular,
@@ -142,8 +143,11 @@ const PlaceholderContent: React.FC<{ tabName: string }> = ({ tabName }) => {
 const MainView: React.FC = () => {
   const styles = useStyles();
   const [activeTab, setActiveTab] = useState<TabId>('data-sources');
+  const log = useDebugLog('MainView');
 
+  // Log tab changes for debugging
   const handleTabSelect = (_: SelectTabEvent, data: SelectTabData) => {
+    log.info('Tab changed', { from: activeTab, to: data.value });
     setActiveTab(data.value as TabId);
   };
 
@@ -181,6 +185,114 @@ const MainView: React.FC = () => {
   );
 };
 
+// Inner content component that has access to debug logger context
+interface EditorContentProps {
+  workloadClient: WorkloadClientAPI;
+  itemObjectId: string | undefined;
+  onOpenHelp: () => void;
+}
+
+const EditorContent: React.FC<EditorContentProps> = ({
+  workloadClient,
+  itemObjectId,
+  onOpenHelp,
+}) => {
+  const log = useDebugLog('EditorContent');
+  const { flush, sessionId, logPath } = useDebugLogContext();
+
+  // Log session info on mount
+  useEffect(() => {
+    log.info('DQ Checker Editor initialized', {
+      itemId: itemObjectId,
+      sessionId,
+      logPath
+    });
+  }, [log, itemObjectId, sessionId, logPath]);
+
+  // Handle refresh with debug logging
+  const handleRefresh = useCallback(async () => {
+    log.info('Refresh triggered by user', { sessionId });
+    log.info('Flushing debug logs before page reload...');
+    await flush();
+    // Small delay to ensure flush completes
+    setTimeout(() => {
+      window.location.reload();
+    }, 300);
+  }, [log, flush, sessionId]);
+
+  // Handle opening settings dialog
+  const handleOpenSettings = async () => {
+    if (!itemObjectId) return;
+
+    log.info('Opening settings dialog', { itemId: itemObjectId });
+    const item = {
+      id: itemObjectId,
+      workspaceId: '',
+      type: `${process.env.WORKLOAD_NAME}.DQChecker`,
+      displayName: 'DQ Checker',
+      description: '',
+      folderId: '',
+      tags: [] as ItemTag[],
+    };
+
+    try {
+      await callOpenSettings(workloadClient, item, 'customItemSettings');
+    } catch (error) {
+      log.error('Failed to open settings', { error: error instanceof Error ? error.message : String(error) });
+    }
+  };
+
+  // Define views
+  const views: RegisteredView[] = [
+    {
+      name: 'main',
+      component: <MainView />,
+    },
+  ];
+
+  // Ribbon actions for Home tab
+  const homeActions: RibbonAction[] = [
+    {
+      key: 'refresh',
+      icon: ArrowSync24Regular,
+      label: 'Refresh',
+      tooltip: 'Refresh data (logs will be flushed)',
+      onClick: handleRefresh,
+    },
+    {
+      key: 'settings',
+      icon: Settings24Regular,
+      label: 'Settings',
+      tooltip: 'Open preferences',
+      onClick: handleOpenSettings,
+    },
+    {
+      key: 'help',
+      icon: Question24Regular,
+      label: 'Help',
+      tooltip: 'Open help guide',
+      onClick: onOpenHelp,
+    },
+  ];
+
+  // Ribbon render function
+  const renderRibbon = (context: ViewContext) => (
+    <Ribbon
+      homeToolbarActions={homeActions}
+      viewContext={context}
+    />
+  );
+
+  return (
+    <ItemEditor
+      ribbon={renderRibbon}
+      views={views}
+      initialView="main"
+    />
+  );
+};
+
+
 export const DQCheckerItemEditor: React.FC<DQCheckerItemEditorProps> = ({
   workloadClient,
 }) => {
@@ -195,6 +307,9 @@ export const DQCheckerItemEditor: React.FC<DQCheckerItemEditorProps> = ({
   // Item definition state (contains graphqlEndpoint and other settings)
   // Note: settings stored for future use (passing defaults to child components)
   const [_settings, setSettings] = useState<DQCheckerSettings>(DEFAULT_SETTINGS);
+
+  // Workspace ID for OneLake debug logging
+  const [workspaceId, setWorkspaceId] = useState<string>('');
 
   // Help dialog state
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -212,6 +327,11 @@ export const DQCheckerItemEditor: React.FC<DQCheckerItemEditorProps> = ({
         itemObjectId,
         DEFAULT_SETTINGS
       );
+
+      // Capture workspace ID for debug logging
+      if (loadedItem.workspaceId) {
+        setWorkspaceId(loadedItem.workspaceId);
+      }
 
       // Merge with defaults to ensure all fields have values
       const mergedSettings = { ...DEFAULT_SETTINGS, ...loadedItem.definition };
@@ -266,85 +386,25 @@ export const DQCheckerItemEditor: React.FC<DQCheckerItemEditorProps> = ({
     );
   }
 
-  // Define views (single main view for now)
-  const views: RegisteredView[] = [
-    {
-      name: 'main',
-      component: <MainView />,
-    },
-  ];
-
-  // Handle opening settings dialog in outer Fabric toolbar
-  const handleOpenSettings = async () => {
-    if (!itemObjectId) return;
-
-    // Create minimal Item object for settings dialog
-    const item = {
-      id: itemObjectId,
-      workspaceId: '', // Will be filled by Fabric
-      type: `${process.env.WORKLOAD_NAME}.DQChecker`,
-      displayName: 'DQ Checker',
-      description: '',
-      folderId: '',
-      tags: [] as ItemTag[],
-    };
-
-    try {
-      await callOpenSettings(workloadClient, item, 'customItemSettings');
-    } catch (error) {
-      console.error('Failed to open settings:', error);
-    }
-  };
-
-  // Ribbon actions for Home tab
-  const homeActions: RibbonAction[] = [
-    {
-      key: 'refresh',
-      icon: ArrowSync24Regular,
-      label: 'Refresh',
-      tooltip: 'Refresh data',
-      onClick: () => {
-        // Trigger refresh - this would be connected to the DataSourcesView
-        window.location.reload();
-      },
-    },
-    {
-      key: 'settings',
-      icon: Settings24Regular,
-      label: 'Settings',
-      tooltip: 'Open preferences',
-      onClick: handleOpenSettings,
-    },
-    {
-      key: 'help',
-      icon: Question24Regular,
-      label: 'Help',
-      tooltip: 'Open help guide',
-      onClick: () => setIsHelpOpen(true),
-    },
-  ];
-
-  // Ribbon render function
-  const renderRibbon = (context: ViewContext) => (
-    <Ribbon
-      homeToolbarActions={homeActions}
-      viewContext={context}
-    />
-  );
-
   return (
-    <>
-      <ItemEditor
-        ribbon={renderRibbon}
-        views={views}
-        initialView="main"
-      />
-      {/* Help Dialog */}
-      <DQCheckerItemHelp
-        open={isHelpOpen}
-        onClose={() => setIsHelpOpen(false)}
-      />
-    </>
+    <WorkloadClientProvider workloadClient={workloadClient}>
+      <DebugLoggerProvider
+        workloadClient={workloadClient}
+        workspaceId={workspaceId}
+        itemId={itemObjectId || ''}
+      >
+        <EditorContent
+          workloadClient={workloadClient}
+          itemObjectId={itemObjectId}
+          onOpenHelp={() => setIsHelpOpen(true)}
+        />
+        {/* Help Dialog */}
+        <DQCheckerItemHelp
+          open={isHelpOpen}
+          onClose={() => setIsHelpOpen(false)}
+        />
+      </DebugLoggerProvider>
+    </WorkloadClientProvider>
   );
 };
 

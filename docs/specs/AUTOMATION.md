@@ -123,7 +123,26 @@ cp .env.example .env
 # 5. Verify results in database
 ```
 
-### 4. CI/CD Pipeline
+### 4. Run via Fabric Pipeline (Recommended for Debugging)
+
+The Fabric Pipeline provides better error visibility and interactive debugging:
+
+**Pipeline URL:** https://app.fabric.microsoft.com/groups/9e54cf6e-053e-4b57-b8da-11f691b43dc0/pipelines/0987a29b-4eee-4e31-83c4-5f7e18c65e4b
+
+**Pipeline ID:** `0987a29b-4eee-4e31-83c4-5f7e18c65e4b`
+
+**When to use the Pipeline:**
+- Debugging notebook failures (shows detailed cell-by-cell errors)
+- Testing parameter changes interactively
+- Running with different SUITE_ID or TESTCASE_IDS values
+
+**How to run:**
+1. Open the pipeline URL in Fabric
+2. Click "Run" to execute with default parameters
+3. Or configure parameters before running (SUITE_ID, TESTCASE_IDS, SMOKE_TEST)
+4. View results in the pipeline run history
+
+### 5. CI/CD Pipeline
 
 ```powershell
 # Example Azure DevOps / GitHub Actions step:

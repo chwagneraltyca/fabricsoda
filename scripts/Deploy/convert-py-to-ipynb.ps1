@@ -92,19 +92,41 @@ for ($i = 1; $i -lt $parts.Count; $i++) {
     }
 }
 
-# Create notebook structure
+# Create notebook structure with Fabric Python notebook metadata
+# IMPORTANT: This metadata format is required for %%tsql magic to work
 $notebook = @{
     cells = $cells
     metadata = @{
+        kernel_info = @{
+            name = "jupyter"
+            jupyter_kernel_name = "python3.11"
+        }
         kernelspec = @{
-            display_name = "Python 3"
-            language = "python"
-            name = "python3"
+            name = "jupyter"
+            display_name = "Jupyter"
         }
         language_info = @{
             name = "python"
-            version = "3.11"
         }
+        microsoft = @{
+            language = "python"
+            language_group = "jupyter_python"
+            ms_spell_check = @{
+                ms_spell_check_language = "en"
+            }
+        }
+        nteract = @{
+            version = "nteract-front-end@1.0.0"
+        }
+        spark_compute = @{
+            compute_id = "/trident/default"
+            session_options = @{
+                conf = @{
+                    "spark.synapse.nbs.session.timeout" = "1200000"
+                }
+            }
+        }
+        dependencies = @{}
     }
     nbformat = 4
     nbformat_minor = 5

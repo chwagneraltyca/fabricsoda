@@ -35,12 +35,13 @@
 - [x] **TypeScript types:** dataSource.types.ts - source_type, server_name, database_name, keyvault_uri, client_id, secret_name ✅
 - [x] **DataSourceForm:** Full form with 3 sections (Basic, Connection, Authentication) - all 6 fields ✅
 - [x] **DataSourceList:** Table shows source_type badge, server/database combined column ✅
-- [x] **Service layer:** dataSourceService.ts uses auto-generated GraphQL mutations
+- [x] **Service layer:** dataSourceService.ts uses SP-backed GraphQL mutations (`executesp_*`)
 - [x] **Settings Persistence:** Using `getWorkloadItem`/`saveWorkloadItem` (same pattern as fabric-datalineage)
 - [x] **BUG-001 FIXED:** GraphQL Auth Error 3 - redirect URI mismatch
 - [x] **BUG-002 FIXED:** GraphQL endpoint from item definition (not process.env) - pattern from fabric-datalineage
 - [x] **BUG-003 VERIFIED:** Settings save fails - workloadClient was optional (?) instead of required ✅
-- [x] **Debug logging:** Added `[Settings]` console logs for loadSettings/handleSave debugging
+- [x] **BUG-004 FIXED:** GraphQL mutations updated to SP-backed pattern per spec
+- [x] **Debug logging:** OneLake debug logger integrated (DebugLoggerContext) - logs to Files/debug_logs/
 
 ---
 
@@ -73,26 +74,17 @@
 
 ## Immediate Next Steps
 
-### CURRENT BLOCKER: Enable GraphQL Mutations
+### ✅ RESOLVED: GraphQL Mutations Now Use SP-Backed Pattern
 
-**API Test Results (2026-01-05):**
-- ✅ New fields work (source_type, server_name, database_name, etc.)
-- ✅ Queries work (list dq_sources)
-- ❌ createDq_sources mutation: NOT ENABLED
-- ❌ updateDq_sources mutation: NOT ENABLED
-- ❌ deleteDq_sources mutation: NOT ENABLED
+**Fix Applied (2026-01-05):**
+Per spec (docs/specs/items/DQCheckerItem.md), ALL mutations must use SP-backed `executesp_*` pattern.
 
-**Error:** `The field 'deleteDq_sources' does not exist on the type 'Mutation'.`
+**Updated dataSourceService.ts:**
+- `executesp_create_data_source` - Create new data source
+- `executesp_update_data_source` - Update existing data source
+- `executesp_delete_data_source` - Delete data source
 
-**Fix Required:**
-1. Go to Fabric Portal → Your workspace
-2. Find the **GraphQL API** item (e.g., "soda_db GraphQL")
-3. Click **Edit** to open the schema editor
-4. Select `dq_sources` table
-5. **Enable mutations** (Create, Update, Delete) - checkbox or toggle in the UI
-6. Save the API
-
-**Note:** Schema fields are already refreshed and working. Only mutations need to be enabled.
+**Note:** Auto-generated mutations (`createDq_sources`, etc.) are NOT used per design spec.
 
 ### Deploy & Test
 
@@ -170,8 +162,10 @@ Current secrets in `chwakv`:
 - [x] Settings page Test Connection 403 fix - Added Bearer token auth
 - [x] **BUG-001: Settings page Test Connection fails with Error 3** - FIXED (redirect URI mismatch)
 - [x] **BUG-002: GraphQL endpoint not passed from settings** - FIXED (pattern from fabric-datalineage)
-- [ ] **CURRENT: GraphQL mutations not enabled** - Enable create/update/delete mutations for dq_sources in Fabric Portal
+- [x] **BUG-004 FIXED:** GraphQL mutations - Updated to SP-backed `executesp_*` pattern per spec
+- [x] **BUG-005 FIXED:** Cascade delete for data sources with dependent checks
 - [ ] Data Source Form Test Connection - Backend not implemented yet
+- [ ] **🚨 CRITICAL: BUG-006 - Fabric GraphQL API Performance** - 40+ seconds per request (PROJECT BLOCKER)
 
 ---
 
@@ -249,6 +243,76 @@ az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/{id}
 ```
 
 **Details:** [docs/bugs/BUG-001-GraphQL-Auth-Error.md](bugs/BUG-001-GraphQL-Auth-Error.md)
+
+---
+
+### BUG-004: GraphQL Mutations Not Working (FIXED)
+
+**Status:** FIXED (2026-01-05)
+**Error:** Delete button and CRUD operations not working
+
+**Root Cause:** Service was using auto-generated mutations (`createDq_sources`, `deleteDq_sources`) instead of SP-backed mutations per spec.
+
+**Fix Applied:**
+Updated `dataSourceService.ts` to use SP-backed mutations:
+- `executesp_create_data_source` instead of `createDq_sources`
+- `executesp_update_data_source` instead of `updateDq_sources`
+- `executesp_delete_data_source` instead of `deleteDq_sources`
+
+**Spec Reference:** `docs/specs/items/DQCheckerItem.md` - ALL mutations use SP-backed pattern.
+
+---
+
+### BUG-005: Cascade Delete for Data Sources (FIXED)
+
+**Status:** FIXED (2026-01-05)
+**Error:** Delete fails with constraint violation when source has dependent checks
+
+**Root Cause:** `sp_delete_data_source` did simple DELETE without handling FK constraints.
+
+**Fix Applied:**
+Updated SP to cascade delete dependent `dq_checks` records before deleting the source.
+
+**Files Changed:**
+- `scripts/Deploy/fix-delete-sp.sql` - SP with cascade delete logic
+
+---
+
+### 🚨 BUG-006: Fabric GraphQL API Performance (CRITICAL - PROJECT BLOCKER)
+
+**Status:** OPEN (2026-01-05)
+**Severity:** CRITICAL - May block project viability
+
+**Problem:**
+Fabric GraphQL API requests take **40+ seconds** for simple operations:
+- Token acquisition: ~1.3s (acceptable)
+- Simple query (list sources): **41.6s** ❌
+- Mutation (delete): **41.3s** ❌
+
+**Impact:**
+- Page load takes over 1 minute
+- CRUD operations feel broken to users
+- UX is unacceptable for production use
+
+**Root Cause:**
+Unknown - appears to be Fabric platform issue:
+- Cold start of GraphQL API?
+- Throttling?
+- Capacity constraints?
+- GraphQL API configuration?
+
+**Tested:**
+- Direct API calls via PowerShell show same latency
+- Not related to frontend code or SP execution time
+- Database queries themselves are fast (<1s)
+
+**Potential Solutions:**
+1. Contact Microsoft Fabric support
+2. Check if GraphQL API needs capacity upgrade
+3. Investigate alternative APIs (direct SQL, REST)
+4. Check workspace/capacity settings
+
+**This issue could stop the entire project if not resolved.**
 
 ---
 

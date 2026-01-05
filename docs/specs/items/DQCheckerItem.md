@@ -375,6 +375,50 @@ Migrated from Legacy `flask_app/blueprints/settings.py`:
 - **Default DQ Dimension** - completeness/accuracy/consistency/validity/uniqueness/timeliness
 - **Default Tags** - Comma-separated tags
 
+#### Connection Test Pattern
+
+Following the Data Lineage reference project pattern for clean UX:
+
+```typescript
+// Simple state: just testing boolean + result
+const [connectionTest, setConnectionTest] = useState<ConnectionTestResult>({
+    status: 'idle',  // 'idle' | 'testing' | 'success' | 'error'
+    message: 'Not tested',
+});
+
+// Test function: no intermediate status messages
+const handleTestConnection = async () => {
+    setConnectionTest({ status: 'testing', message: '' });  // Single state, no flicker
+
+    try {
+        const authService = new FabricAuthenticationService(workloadClient);
+        const tokenResult = await authService.acquireAccessToken(FABRIC_BASE_SCOPES.POWERBI_API);
+
+        // Query + auth in one block
+        const response = await fetch(settings.graphqlEndpoint, {
+            headers: { 'Authorization': `Bearer ${tokenResult.token}` },
+            body: JSON.stringify({ query: testQuery }),
+        });
+
+        // Only set result after completion
+        setConnectionTest({ status: 'success', message: `Connected!`, lastTested: new Date() });
+    } catch (error) {
+        setConnectionTest({ status: 'error', message: error.message, lastTested: new Date() });
+    }
+};
+
+// UI: Result card only shown after completion (not during testing)
+{(connectionTest.status === 'success' || connectionTest.status === 'error') && (
+    <StatusCard>{connectionTest.message}</StatusCard>
+)}
+```
+
+**Key principles:**
+- Button shows spinner + "Testing..." (single indicator)
+- No intermediate status messages (no "Authenticating...", "Connecting...")
+- Result card appears only after test completes
+- Matches Data Lineage pattern for consistency
+
 #### Settings Persistence Pattern
 
 Settings use Fabric item definition storage (same pattern as fabric-datalineage reference project):

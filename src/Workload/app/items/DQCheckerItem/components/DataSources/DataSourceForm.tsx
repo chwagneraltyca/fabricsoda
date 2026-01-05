@@ -56,6 +56,7 @@ import {
   sourceTypeOptions,
   ConnectionStatus,
 } from '../../types/dataSource.types';
+import { useDebugLog } from '../../../../context';
 
 // Styles matching legacy design with Fabric UX improvements
 const useStyles = makeStyles({
@@ -239,6 +240,7 @@ export const DataSourceForm: React.FC<DataSourceFormProps> = ({
   onTestConnection,
 }) => {
   const styles = useStyles();
+  const log = useDebugLog('DataSourceForm');
   const isEditing = !!dataSource;
 
   // Form state
@@ -414,11 +416,13 @@ export const DataSourceForm: React.FC<DataSourceFormProps> = ({
       }
 
       setIsSubmitting(true);
+      log.info('Submitting form', { isEditing, sourceName: formData.source_name });
       try {
         await onSubmit(formData, dataSource?.source_id);
+        log.info('Form submitted successfully');
         onClose();
       } catch (error) {
-        console.error('Form submission error:', error);
+        log.error('Form submission error', { error: error instanceof Error ? error.message : String(error) });
         setErrors({
           _form: error instanceof Error ? error.message : 'An error occurred',
         });
@@ -426,7 +430,7 @@ export const DataSourceForm: React.FC<DataSourceFormProps> = ({
         setIsSubmitting(false);
       }
     },
-    [formData, dataSource, validate, onSubmit, onClose]
+    [formData, dataSource, validate, onSubmit, onClose, log, isEditing]
   );
 
   return (

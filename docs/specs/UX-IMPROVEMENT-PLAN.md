@@ -169,9 +169,40 @@ const response = await fetch(settings.graphqlEndpoint, {
     },
 });
 ```
-**Status:** ✅ Code Fixed - But now blocked by BUG-001 (token acquisition fails with Error 3)
+**Status:** ✅ Fixed
 
-**Note:** The 403 error was fixed by adding Bearer token auth. However, token acquisition itself now fails with Error 3. See [BUG-001](../bugs/BUG-001-GraphQL-Auth-Error.md).
+### Phase 9.7: Connection Test UX Fix (DONE) ✅
+**Problem:** Duplicate "Testing..." messages during connection test
+**Root Cause:** Two intermediate status messages shown during test phases
+**Reference:** fabric-datalineage project (simpler pattern with no intermediate messages)
+
+**Before (confusing UX):**
+- Button: "Testing..."
+- Status area: "Authenticating with Fabric..." → "Testing GraphQL connection..."
+
+**After (clean UX):**
+- Button: "Testing..." with spinner (single indicator)
+- Result card: Only shown after completion (success/error)
+
+**Fix Applied:**
+```typescript
+// Before (two intermediate messages):
+setConnectionTest({ status: 'testing', message: 'Authenticating with Fabric...' });
+// ... auth code ...
+setConnectionTest({ status: 'testing', message: 'Testing GraphQL connection...' });
+
+// After (simple testing state, no intermediate messages):
+setConnectionTest({ status: 'testing', message: '' });
+// ... auth + query in one block ...
+// Result only shown after completion
+
+// UI: Only show result card for success/error, not during testing
+{(connectionTest.status === 'success' || connectionTest.status === 'error') && (
+    <div className={...}>{connectionTest.message}</div>
+)}
+```
+
+**Status:** ✅ Fixed - Matches Data Lineage pattern
 
 ### Phase 9.6: Settings Persistence Fix (DONE) ✅
 **Problem:** Settings used localStorage (browser-only, not persistent across sessions/devices)

@@ -2,8 +2,8 @@
  * Data Source Service
  *
  * Service layer for data source CRUD operations via GraphQL.
- * Uses auto-generated mutations (createDq_sources, updateDq_sources, deleteDq_sources)
- * per CLAUDE.md - SPs are only for multi-table operations.
+ * Uses SP-backed mutations (executesp_create_data_source, executesp_update_data_source, etc.)
+ * per spec: docs/specs/items/DQCheckerItem.md - ALL mutations use SP pattern.
  *
  * Schema: docs/specs/data-model/er-model-simplified.md
  */
@@ -13,9 +13,6 @@ import {
   DataSource,
   DataSourceFormData,
   DataSourcesQueryResponse,
-  CreateDataSourceResponse,
-  UpdateDataSourceResponse,
-  DeleteDataSourceResponse,
 } from '../types/dataSource.types';
 
 // All fields for dq_sources
@@ -73,42 +70,105 @@ const QUERIES = {
   `,
 };
 
-// GraphQL Mutations (auto-generated per CLAUDE.md)
+// GraphQL Mutations (SP-backed per spec - NO auto-generated mutations)
 const MUTATIONS = {
-  // Create data source via auto-generated mutation
+  // Create data source via SP
   createDataSource: `
-    mutation CreateDataSource($item: CreateDq_sourcesInput!) {
-      createDq_sources(item: $item) {
+    mutation CreateDataSource(
+      $source_name: String!,
+      $source_type: String,
+      $server_name: String,
+      $database_name: String,
+      $keyvault_uri: String,
+      $client_id: String,
+      $secret_name: String,
+      $description: String,
+      $is_active: Boolean
+    ) {
+      executesp_create_data_source(
+        source_name: $source_name,
+        source_type: $source_type,
+        server_name: $server_name,
+        database_name: $database_name,
+        keyvault_uri: $keyvault_uri,
+        client_id: $client_id,
+        secret_name: $secret_name,
+        description: $description,
+        is_active: $is_active
+      ) {
         source_id
         source_name
       }
     }
   `,
 
-  // Update data source via auto-generated mutation
+  // Update data source via SP
   updateDataSource: `
-    mutation UpdateDataSource($source_id: Int!, $item: UpdateDq_sourcesInput!) {
-      updateDq_sources(source_id: $source_id, item: $item) {
+    mutation UpdateDataSource(
+      $source_id: Int!,
+      $source_name: String!,
+      $source_type: String,
+      $server_name: String,
+      $database_name: String,
+      $keyvault_uri: String,
+      $client_id: String,
+      $secret_name: String,
+      $description: String,
+      $is_active: Boolean
+    ) {
+      executesp_update_data_source(
+        source_id: $source_id,
+        source_name: $source_name,
+        source_type: $source_type,
+        server_name: $server_name,
+        database_name: $database_name,
+        keyvault_uri: $keyvault_uri,
+        client_id: $client_id,
+        secret_name: $secret_name,
+        description: $description,
+        is_active: $is_active
+      ) {
         source_id
         source_name
       }
     }
   `,
 
-  // Delete data source via auto-generated mutation
+  // Delete data source via SP
   deleteDataSource: `
     mutation DeleteDataSource($source_id: Int!) {
-      deleteDq_sources(source_id: $source_id) {
-        source_id
+      executesp_delete_data_source(source_id: $source_id) {
+        deleted_count
       }
     }
   `,
 };
 
+// SP response types
+interface SPCreateResponse {
+  executesp_create_data_source: {
+    source_id: number;
+    source_name: string;
+  };
+}
+
+interface SPUpdateResponse {
+  executesp_update_data_source: {
+    source_id: number;
+    source_name: string;
+  };
+}
+
+interface SPDeleteResponse {
+  executesp_delete_data_source: {
+    deleted_count: number;
+  };
+}
+
 /**
  * Data Source Service
  *
- * Provides CRUD operations for data sources.
+ * Provides CRUD operations for data sources via SP-backed mutations.
  */
 export const dataSourceService = {
   /**
@@ -147,32 +207,30 @@ export const dataSourceService = {
   },
 
   /**
-   * Create a new data source
+   * Create a new data source via SP
    *
    * @param data DataSourceFormData
    * @returns Created DataSource with source_id
    */
   async create(data: DataSourceFormData): Promise<{ source_id: number; source_name: string }> {
     const client = getGraphQLClient();
-    const response = await client.mutate<CreateDataSourceResponse>(MUTATIONS.createDataSource, {
-      item: {
-        source_name: data.source_name,
-        source_type: data.source_type,
-        server_name: data.server_name,
-        database_name: data.database_name,
-        keyvault_uri: data.keyvault_uri || null,
-        client_id: data.client_id || null,
-        secret_name: data.secret_name || null,
-        description: data.description || null,
-        is_active: data.is_active,
-      },
+    const response = await client.mutate<SPCreateResponse>(MUTATIONS.createDataSource, {
+      source_name: data.source_name,
+      source_type: data.source_type || 'fabric_warehouse',
+      server_name: data.server_name || null,
+      database_name: data.database_name || null,
+      keyvault_uri: data.keyvault_uri || null,
+      client_id: data.client_id || null,
+      secret_name: data.secret_name || null,
+      description: data.description || null,
+      is_active: data.is_active,
     });
 
-    return response.createDq_sources;
+    return response.executesp_create_data_source;
   },
 
   /**
-   * Update an existing data source
+   * Update an existing data source via SP
    *
    * @param sourceId The source ID to update
    * @param data DataSourceFormData with updated values
@@ -180,37 +238,35 @@ export const dataSourceService = {
    */
   async update(sourceId: number, data: DataSourceFormData): Promise<{ source_id: number; source_name: string }> {
     const client = getGraphQLClient();
-    const response = await client.mutate<UpdateDataSourceResponse>(MUTATIONS.updateDataSource, {
+    const response = await client.mutate<SPUpdateResponse>(MUTATIONS.updateDataSource, {
       source_id: sourceId,
-      item: {
-        source_name: data.source_name,
-        source_type: data.source_type,
-        server_name: data.server_name,
-        database_name: data.database_name,
-        keyvault_uri: data.keyvault_uri || null,
-        client_id: data.client_id || null,
-        secret_name: data.secret_name || null,
-        description: data.description || null,
-        is_active: data.is_active,
-      },
+      source_name: data.source_name,
+      source_type: data.source_type || null,
+      server_name: data.server_name || null,
+      database_name: data.database_name || null,
+      keyvault_uri: data.keyvault_uri || null,
+      client_id: data.client_id || null,
+      secret_name: data.secret_name || null,
+      description: data.description || null,
+      is_active: data.is_active,
     });
 
-    return response.updateDq_sources;
+    return response.executesp_update_data_source;
   },
 
   /**
-   * Delete a data source
+   * Delete a data source via SP
    *
    * @param sourceId The source ID to delete
-   * @returns The deleted source_id
+   * @returns The deleted count
    */
-  async delete(sourceId: number): Promise<{ source_id: number }> {
+  async delete(sourceId: number): Promise<{ deleted_count: number }> {
     const client = getGraphQLClient();
-    const response = await client.mutate<DeleteDataSourceResponse>(MUTATIONS.deleteDataSource, {
+    const response = await client.mutate<SPDeleteResponse>(MUTATIONS.deleteDataSource, {
       source_id: sourceId,
     });
 
-    return response.deleteDq_sources;
+    return response.executesp_delete_data_source;
   },
 
   /**

@@ -8,6 +8,62 @@
 
 ---
 
+## Fabric Python Notebook Metadata
+
+**CRITICAL:** Fabric distinguishes between PySpark and Python notebooks via metadata. The `%%tsql` magic command ONLY works in Python notebooks.
+
+### Required Metadata Format
+
+```json
+{
+  "metadata": {
+    "kernel_info": {
+      "name": "jupyter",
+      "jupyter_kernel_name": "python3.11"
+    },
+    "kernelspec": {
+      "name": "jupyter",
+      "display_name": "Jupyter"
+    },
+    "language_info": {
+      "name": "python"
+    },
+    "microsoft": {
+      "language": "python",
+      "language_group": "jupyter_python"
+    },
+    "nteract": {
+      "version": "nteract-front-end@1.0.0"
+    },
+    "spark_compute": {
+      "compute_id": "/trident/default"
+    }
+  }
+}
+```
+
+### Key Fields
+
+| Field | Value | Purpose |
+|-------|-------|---------|
+| `kernelspec.name` | `"jupyter"` | Identifies as Python (not Spark) |
+| `kernel_info.jupyter_kernel_name` | `"python3.11"` | Python version |
+| `microsoft.language_group` | `"jupyter_python"` | Fabric Python runtime |
+
+### Fix Notebook Metadata
+
+If `%%tsql` gives "Cell magic not found", the notebook is running as PySpark. Fix with:
+
+```powershell
+# Fix metadata to Python notebook format
+./scripts/Deploy/fix-notebook-metadata.ps1
+
+# Upload to Fabric
+./scripts/Deploy/sync-notebook.ps1 upload
+```
+
+---
+
 ## Executive Summary
 
 **Key Insight:** We are a wrapper on top of the Soda `Scan` class.
