@@ -73,25 +73,26 @@
 
 ## Immediate Next Steps
 
-### CURRENT BLOCKER: Refresh GraphQL API Schema
+### CURRENT BLOCKER: Enable GraphQL Mutations
 
-The Settings Test Connection works ("Connected! Found 1 data source(s)."), but the DataSources list fails because the GraphQL API schema doesn't include the new columns.
+**API Test Results (2026-01-05):**
+- ✅ New fields work (source_type, server_name, database_name, etc.)
+- ✅ Queries work (list dq_sources)
+- ❌ createDq_sources mutation: NOT ENABLED
+- ❌ updateDq_sources mutation: NOT ENABLED
+- ❌ deleteDq_sources mutation: NOT ENABLED
 
-**Error:** `The field 'source_type' does not exist on the type 'dq_sources'`
+**Error:** `The field 'deleteDq_sources' does not exist on the type 'Mutation'.`
 
 **Fix Required:**
 1. Go to Fabric Portal → Your workspace
 2. Find the **GraphQL API** item (e.g., "soda_db GraphQL")
 3. Click **Edit** to open the schema editor
 4. Select `dq_sources` table
-5. **Refresh/update the schema** to include all columns:
-   - `source_type`
-   - `server_name`
-   - `database_name`
-   - `keyvault_uri`
-   - `client_id`
-   - `secret_name`
+5. **Enable mutations** (Create, Update, Delete) - checkbox or toggle in the UI
 6. Save the API
+
+**Note:** Schema fields are already refreshed and working. Only mutations need to be enabled.
 
 ### Deploy & Test
 
@@ -169,7 +170,7 @@ Current secrets in `chwakv`:
 - [x] Settings page Test Connection 403 fix - Added Bearer token auth
 - [x] **BUG-001: Settings page Test Connection fails with Error 3** - FIXED (redirect URI mismatch)
 - [x] **BUG-002: GraphQL endpoint not passed from settings** - FIXED (pattern from fabric-datalineage)
-- [ ] **CURRENT: GraphQL API schema needs refresh** - Add new dq_sources columns to GraphQL API
+- [ ] **CURRENT: GraphQL mutations not enabled** - Enable create/update/delete mutations for dq_sources in Fabric Portal
 - [ ] Data Source Form Test Connection - Backend not implemented yet
 
 ---
