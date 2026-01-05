@@ -31,15 +31,15 @@
 - [x] Key Vault secrets deployed (client-id, meta-db-server, meta-db-name)
 - [x] CLAUDE.md trimmed to best practices
 - [x] Secrets verification: No hardcoded secrets in notebooks (all via Key Vault)
-- [x] **P0 Schema Fix:** dq_sources table updated with correct fields (per ER model)
-- [x] **TypeScript types:** dataSource.types.ts updated with SourceType, connection fields
-- [x] **DataSourceForm:** Full form with 3 sections (Basic, Connection, Authentication)
-- [x] **DataSourceList:** Table shows source_type, server/database columns
+- [x] **P0 Schema Fix:** dq_sources table updated with correct fields (per ER model) ✅
+- [x] **TypeScript types:** dataSource.types.ts - source_type, server_name, database_name, keyvault_uri, client_id, secret_name ✅
+- [x] **DataSourceForm:** Full form with 3 sections (Basic, Connection, Authentication) - all 6 fields ✅
+- [x] **DataSourceList:** Table shows source_type badge, server/database combined column ✅
 - [x] **Service layer:** dataSourceService.ts uses auto-generated GraphQL mutations
 - [x] **Settings Persistence:** Using `getWorkloadItem`/`saveWorkloadItem` (same pattern as fabric-datalineage)
 - [x] **BUG-001 FIXED:** GraphQL Auth Error 3 - redirect URI mismatch
 - [x] **BUG-002 FIXED:** GraphQL endpoint from item definition (not process.env) - pattern from fabric-datalineage
-- [x] **BUG-003 FIXED:** Settings save fails - workloadClient was optional (?) instead of required
+- [x] **BUG-003 VERIFIED:** Settings save fails - workloadClient was optional (?) instead of required ✅
 - [x] **Debug logging:** Added `[Settings]` console logs for loadSettings/handleSave debugging
 
 ---
@@ -202,9 +202,9 @@ Editor loads definition on mount → Passes endpoint to GraphQL client
 
 ---
 
-### BUG-003: Settings Save Failure (FIXED)
+### BUG-003: Settings Save Failure (VERIFIED ✅)
 
-**Status:** FIXED (2026-01-05)
+**Status:** VERIFIED WORKING (2026-01-05) - User confirmed save button works
 **Error:** `Failed to save settings to Fabric`
 
 **Root Cause:** DQCheckerItemSettings used optional workloadClient prop instead of required.
