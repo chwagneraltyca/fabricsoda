@@ -16,6 +16,7 @@ console.log('********************   Development Configuration   ****************
 console.log('process.env.DEV_AAD_CONFIG_FE_APPID: ' + process.env.DEV_AAD_CONFIG_FE_APPID);
 console.log('process.env.DEV_AAD_CONFIG_BE_APPID: ' + process.env.DEV_AAD_CONFIG_BE_APPID);
 console.log('process.env.DEV_AAD_CONFIG_BE_AUDIENCE: ' + process.env.DEV_AAD_CONFIG_BE_AUDIENCE);
+console.log('process.env.DQ_GRAPHQL_ENDPOINT: ' + process.env.DQ_GRAPHQL_ENDPOINT);
 console.log('*********************************************************************');
 
 
@@ -31,6 +32,7 @@ module.exports = merge(baseConfig, {
             "process.env.DEV_AAD_CONFIG_FE_APPID": JSON.stringify(process.env.DEV_AAD_CONFIG_FE_APPID),
             "process.env.DEV_AAD_CONFIG_BE_APPID": JSON.stringify(process.env.DEV_AAD_CONFIG_BE_APPID),
             "process.env.DEV_AAD_CONFIG_BE_AUDIENCE": JSON.stringify(process.env.DEV_AAD_CONFIG_BE_AUDIENCE),
+            "process.env.DQ_GRAPHQL_ENDPOINT": JSON.stringify(process.env.DQ_GRAPHQL_ENDPOINT),
         }),
     ],
     devServer: {

@@ -1,8 +1,10 @@
 # Fabric Python Notebook Implementation Plan
 
-**Version:** 1.2
-**Last Updated:** 2025-01-04
-**Status:** Ready for Implementation
+**Version:** 1.3
+**Last Updated:** 2025-01-05
+**Status:** Implemented
+
+**IMPORTANT:** Work only with `.ipynb` files. No `.py` files. Use `sync-notebook.ps1` to sync.
 
 ---
 
@@ -23,7 +25,16 @@ Everything else is optional complexity.
 
 ## Notebook Template
 
-**Location:** `src/Notebook/dq_checker_scan.py`
+**Location:** `src/Notebook/dq_checker_scan.ipynb`
+
+**IMPORTANT:** Work only with `.ipynb` files. Use `sync-notebook.ps1` to sync with Fabric:
+```powershell
+# Download from Fabric
+./scripts/Deploy/sync-notebook.ps1 download
+
+# Upload to Fabric
+./scripts/Deploy/sync-notebook.ps1 upload
+```
 
 ### Notebook Structure
 
@@ -382,10 +393,10 @@ def write_to_onelake(run_id, execution_log_id, scan_results, soda_logs, yaml_con
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│ Fabric Python Notebook: dq_checker_scan.py                     │
+│ Fabric Python Notebook: dq_checker_scan.ipynb                  │
 ├────────────────────────────────────────────────────────────────┤
 │ Cell 1: Configuration                                          │
-│   - Connection strings (from Key Vault or hardcoded)          │
+│   - Key Vault secrets (NO hardcoded credentials)              │
 │   - Suite ID parameter                                         │
 ├────────────────────────────────────────────────────────────────┤
 │ Cell 2: YAML Generator (inline)                                │
@@ -393,7 +404,7 @@ def write_to_onelake(run_id, execution_log_id, scan_results, soda_logs, yaml_con
 │   - _generate_check_yaml() for each metric type                │
 ├────────────────────────────────────────────────────────────────┤
 │ Cell 3: Execute Scan                                           │
-│   - Read metadata from SQL DB (pyodbc)                        │
+│   - Read metadata via connect_to_artifact()                   │
 │   - Generate YAML                                              │
 │   - Execute Soda scan                                          │
 │   - Write results to SQL DB + OneLake                         │
@@ -801,16 +812,25 @@ update_execution_log(conn, execution_log_id, counts, yaml_content)
 
 ## Connection Methods
 
-### Recommended: `notebookutils.data.connect_to_artifact()` (Simplest)
+### Two Connection Types Required
 
-**Use this method.** No tokens, passwords, or connection strings needed. Fabric handles authentication automatically.
+| Connection | Method | Purpose |
+|------------|--------|---------|
+| **Metadata DB (soda_db)** | `notebookutils.data.connect_to_artifact()` | Read check definitions, write results |
+| **Target DWH** | Soda + pyodbc + Service Principal | Execute data quality checks |
+
+**IMPORTANT:** Use display name `soda_db` for `connect_to_artifact()`, NOT the full GUID.
+
+### 1. Metadata DB: `connect_to_artifact()` (Fabric-native)
+
+**Use this for soda_db.** No tokens or connection strings needed.
 
 ```python
 import notebookutils
 
-# Connect to SQL Database artifact by name or ID
+# Connect using DISPLAY NAME only (not GUID)
 conn = notebookutils.data.connect_to_artifact(
-    "soda_db-3dbb8254-b235-48a7-b66b-6b321f471b52",  # Database name or ID
+    "soda_db",  # Display name - NOT soda_db-3dbb8254-b235-48a7-b66b-6b321f471b52
     artifact_type="sqldatabase"
 )
 
@@ -826,43 +846,46 @@ execution_log_id = int(result_df.iloc[0, 0])
 - No tokens or secrets required
 - Fabric handles identity seamlessly
 - Works only in Fabric Python notebooks (not PySpark)
-- `.query()` method returns pandas DataFrame for any T-SQL
 
-### Alternative: ActiveDirectoryDefault (NOT recommended for Fabric Python)
+### 2. Target DWH: Soda + pyodbc + Service Principal
 
-**Note:** This does NOT work in Fabric Python notebooks. Use `connect_to_artifact()` instead.
+**Use this for target data warehouses where Soda runs checks.**
 
-```python
-# DOES NOT WORK in Fabric Python notebooks!
-conn = pyodbc.connect(
-    "Driver={ODBC Driver 18 for SQL Server};"
-    f"Server={server};"
-    f"Database={database};"
-    "Authentication=ActiveDirectoryDefault;"  # Fails with "Invalid value" error
-)
-```
-
-### Alternative: Service Principal (for external scripts only)
-
-Use this only for scripts running outside Fabric (e.g., deployment scripts).
+Target DWH connection info is stored in `dq_sources` table and retrieved at runtime.
 
 ```python
-from azure.identity import ClientSecretCredential
+# Get connection info from metadata DB
+source_df = conn.query(f"SELECT * FROM dq_sources WHERE source_id = {source_id}")
+server = source_df['server_name'].iloc[0]
+database = source_df['database_name'].iloc[0]
+client_id = source_df['client_id'].iloc[0]
 
-credential = ClientSecretCredential(
-    tenant_id=TENANT_ID,
-    client_id=CLIENT_ID,
-    client_secret=CLIENT_SECRET
-)
-token = credential.get_token("https://database.windows.net/.default").token
+# Get secret from Key Vault
+client_secret = notebookutils.credentials.getSecret(KEY_VAULT_URI, SECRET_NAME)
 
-conn = pyodbc.connect(
-    "Driver={ODBC Driver 18 for SQL Server};"
-    f"Server={server};"
-    f"Database={database};"
-    f"AccessToken={token};"
-)
+# Soda YAML config
+soda_config = f"""
+data_source {source_name}:
+  type: sqlserver
+  driver: ODBC Driver 18 for SQL Server
+  host: {server}
+  port: '1433'
+  database: {database}
+  authentication: ActiveDirectoryServicePrincipal
+  username: {client_id}
+  password: {client_secret}
+  encrypt: true
+  trust_server_certificate: false
+"""
 ```
+
+### Connection Method Summary
+
+| Use Case | Method | Why |
+|----------|--------|-----|
+| Metadata DB reads/writes | `connect_to_artifact("soda_db")` | Fabric-native, no auth needed |
+| Target DWH (Soda scans) | pyodbc + Service Principal | Required by Soda Core |
+| External scripts (sqlcmd) | Service Principal | Outside Fabric runtime |
 
 ---
 
@@ -911,9 +934,9 @@ data_source fabric_dwh:
   encrypt: true
 ```
 
-### Smoke Test Template
+### Smoke Test Mode
 
-Use `src/Notebook/templates/soda_auth_smoke_test.py` to test which authentication methods work in your environment before implementing.
+The notebook includes a smoke test mode (`SMOKE_TEST = True`) to test authentication methods before running full suites.
 
 ---
 
@@ -927,7 +950,12 @@ Service Principal credentials are stored securely in Azure Key Vault and retriev
 
 | Secret | Key Vault | Secret Name |
 |--------|-----------|-------------|
+| Service Principal Client ID | `chwakv` | `dq-checker-spn-client-id` |
 | Service Principal Client Secret | `chwakv` | `dq-checker-spn-secret` |
+| Metadata DB Server | `chwakv` | `dq-checker-meta-db-server` |
+| Metadata DB Name | `chwakv` | `dq-checker-meta-db-name` |
+
+**Note:** Secret names are configurable via the Settings page in Fabric (see `docs/TODO.md` P0 action item).
 
 ### Usage in Notebook
 

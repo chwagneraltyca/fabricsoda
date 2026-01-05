@@ -369,12 +369,43 @@ Displays version info, documentation links, and support resources:
 ### Preferences Page (`DQCheckerItemSettings.tsx`)
 
 Migrated from Legacy `flask_app/blueprints/settings.py`:
+- **GraphQL Endpoint** - Fabric GraphQL API URL for SQL database
 - **Default Owner** - Email of check owner
 - **Default Severity** - critical/high/medium/low
 - **Default DQ Dimension** - completeness/accuracy/consistency/validity/uniqueness/timeliness
 - **Default Tags** - Comma-separated tags
 
-Settings stored in item definition via `saveWorkloadItem()`.
+#### Settings Persistence Pattern
+
+Settings use Fabric item definition storage (same pattern as fabric-datalineage reference project):
+
+```typescript
+import { getWorkloadItem, saveWorkloadItem, ItemWithDefinition } from '../../controller/ItemCRUDController';
+
+// State
+const [item, setItem] = useState<ItemWithDefinition<DQCheckerSettings> | null>(null);
+const [settings, setSettings] = useState<DQCheckerSettings>(DEFAULT_SETTINGS);
+
+// Load from Fabric backend (on mount)
+const loadedItem = await getWorkloadItem<DQCheckerSettings>(
+    workloadClient,
+    itemObjectId,
+    DEFAULT_SETTINGS  // fallback if no saved definition
+);
+setItem(loadedItem);
+setSettings({ ...DEFAULT_SETTINGS, ...loadedItem.definition });
+
+// Save to Fabric backend (on Save button)
+await saveWorkloadItem<DQCheckerSettings>(workloadClient, {
+    ...item,
+    definition: settings,
+});
+```
+
+**Why not localStorage:**
+- localStorage is browser-only, not persistent across devices
+- Fabric item definition stores in SQL backend (permanent)
+- Same pattern as fabric-datalineage reference project
 
 ### Help Dialog (`DQCheckerItemHelp.tsx`)
 

@@ -2,11 +2,10 @@
  * Data Source Service
  *
  * Service layer for data source CRUD operations via GraphQL.
- * Uses SP-backed mutations (executesp_*) as per project rules.
+ * Uses auto-generated mutations (createDq_sources, updateDq_sources, deleteDq_sources)
+ * per CLAUDE.md - SPs are only for multi-table operations.
  *
- * GraphQL Pattern:
- * - Reads: Direct queries against dq_sources table
- * - Writes: SP-backed mutations (executesp_create_data_source, etc.)
+ * Schema: docs/specs/data-model/er-model-simplified.md
  */
 
 import { getGraphQLClient } from './graphqlClient';
@@ -19,9 +18,25 @@ import {
   DeleteDataSourceResponse,
 } from '../types/dataSource.types';
 
+// All fields for dq_sources
+const DATA_SOURCE_FIELDS = `
+  source_id
+  source_name
+  source_type
+  server_name
+  database_name
+  keyvault_uri
+  client_id
+  secret_name
+  description
+  is_active
+  created_at
+  updated_at
+`;
+
 // GraphQL Queries
 const QUERIES = {
-  // List all data sources (matches legacy /api/data-sources GET)
+  // List all data sources
   listDataSources: `
     query ListDataSources($activeOnly: Boolean) {
       dq_sources(
@@ -29,83 +44,62 @@ const QUERIES = {
         orderBy: { source_name: ASC }
       ) {
         items {
-          source_id
-          source_name
-          description
-          is_active
-          created_at
-          updated_at
+          ${DATA_SOURCE_FIELDS}
         }
       }
     }
   `,
 
-  // Get single data source (matches legacy /api/data-sources/:id GET)
+  // List all data sources (no filter)
+  listAllDataSources: `
+    query ListAllDataSources {
+      dq_sources(orderBy: { source_name: ASC }) {
+        items {
+          ${DATA_SOURCE_FIELDS}
+        }
+      }
+    }
+  `,
+
+  // Get single data source
   getDataSource: `
     query GetDataSource($sourceId: Int!) {
       dq_sources(filter: { source_id: { eq: $sourceId } }) {
         items {
-          source_id
-          source_name
-          description
-          is_active
-          created_at
-          updated_at
+          ${DATA_SOURCE_FIELDS}
         }
       }
     }
   `,
 };
 
-// GraphQL Mutations (SP-backed as per CLAUDE.md Rule #6)
+// GraphQL Mutations (auto-generated per CLAUDE.md)
 const MUTATIONS = {
-  // Create data source via sp_create_data_source
+  // Create data source via auto-generated mutation
   createDataSource: `
-    mutation CreateDataSource(
-      $source_name: String!
-      $description: String
-      $is_active: Boolean
-    ) {
-      executesp_create_data_source(
-        source_name: $source_name
-        description: $description
-        is_active: $is_active
-      ) {
+    mutation CreateDataSource($item: CreateDq_sourcesInput!) {
+      createDq_sources(item: $item) {
         source_id
         source_name
-        description
-        is_active
       }
     }
   `,
 
-  // Update data source via sp_update_data_source
+  // Update data source via auto-generated mutation
   updateDataSource: `
-    mutation UpdateDataSource(
-      $source_id: Int!
-      $source_name: String!
-      $description: String
-      $is_active: Boolean
-    ) {
-      executesp_update_data_source(
-        source_id: $source_id
-        source_name: $source_name
-        description: $description
-        is_active: $is_active
-      ) {
+    mutation UpdateDataSource($source_id: Int!, $item: UpdateDq_sourcesInput!) {
+      updateDq_sources(source_id: $source_id, item: $item) {
         source_id
         source_name
-        description
-        is_active
       }
     }
   `,
 
-  // Delete data source via sp_delete_data_source
+  // Delete data source via auto-generated mutation
   deleteDataSource: `
     mutation DeleteDataSource($source_id: Int!) {
-      executesp_delete_data_source(source_id: $source_id) {
-        deleted_count
+      deleteDq_sources(source_id: $source_id) {
+        source_id
       }
     }
   `,
@@ -114,7 +108,7 @@ const MUTATIONS = {
 /**
  * Data Source Service
  *
- * Provides CRUD operations for data sources matching the legacy Flask API.
+ * Provides CRUD operations for data sources.
  */
 export const dataSourceService = {
   /**
@@ -126,24 +120,9 @@ export const dataSourceService = {
   async list(activeOnly?: boolean): Promise<DataSource[]> {
     const client = getGraphQLClient();
 
-    // Note: GraphQL filter with null value means "all"
-    // We need to build the query differently based on activeOnly
     const query = activeOnly !== undefined
       ? QUERIES.listDataSources
-      : `
-        query ListAllDataSources {
-          dq_sources(orderBy: { source_name: ASC }) {
-            items {
-              source_id
-              source_name
-              description
-              is_active
-              created_at
-              updated_at
-            }
-          }
-        }
-      `;
+      : QUERIES.listAllDataSources;
 
     const variables = activeOnly !== undefined ? { activeOnly } : undefined;
     const response = await client.query<DataSourcesQueryResponse>(query, variables);
@@ -173,20 +152,23 @@ export const dataSourceService = {
    * @param data DataSourceFormData
    * @returns Created DataSource with source_id
    */
-  async create(data: DataSourceFormData): Promise<DataSource> {
+  async create(data: DataSourceFormData): Promise<{ source_id: number; source_name: string }> {
     const client = getGraphQLClient();
     const response = await client.mutate<CreateDataSourceResponse>(MUTATIONS.createDataSource, {
-      source_name: data.source_name,
-      description: data.description || null,
-      is_active: data.is_active,
+      item: {
+        source_name: data.source_name,
+        source_type: data.source_type,
+        server_name: data.server_name,
+        database_name: data.database_name,
+        keyvault_uri: data.keyvault_uri || null,
+        client_id: data.client_id || null,
+        secret_name: data.secret_name || null,
+        description: data.description || null,
+        is_active: data.is_active,
+      },
     });
 
-    const result = response.executesp_create_data_source[0];
-    return {
-      ...result,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    return response.createDq_sources;
   },
 
   /**
@@ -194,38 +176,41 @@ export const dataSourceService = {
    *
    * @param sourceId The source ID to update
    * @param data DataSourceFormData with updated values
-   * @returns Updated DataSource
+   * @returns Updated source_id and source_name
    */
-  async update(sourceId: number, data: DataSourceFormData): Promise<DataSource> {
+  async update(sourceId: number, data: DataSourceFormData): Promise<{ source_id: number; source_name: string }> {
     const client = getGraphQLClient();
     const response = await client.mutate<UpdateDataSourceResponse>(MUTATIONS.updateDataSource, {
       source_id: sourceId,
-      source_name: data.source_name,
-      description: data.description || null,
-      is_active: data.is_active,
+      item: {
+        source_name: data.source_name,
+        source_type: data.source_type,
+        server_name: data.server_name,
+        database_name: data.database_name,
+        keyvault_uri: data.keyvault_uri || null,
+        client_id: data.client_id || null,
+        secret_name: data.secret_name || null,
+        description: data.description || null,
+        is_active: data.is_active,
+      },
     });
 
-    const result = response.executesp_update_data_source[0];
-    return {
-      ...result,
-      created_at: '', // Not returned by update SP
-      updated_at: new Date().toISOString(),
-    };
+    return response.updateDq_sources;
   },
 
   /**
    * Delete a data source
    *
    * @param sourceId The source ID to delete
-   * @returns true if deleted, false if not found
+   * @returns The deleted source_id
    */
-  async delete(sourceId: number): Promise<boolean> {
+  async delete(sourceId: number): Promise<{ source_id: number }> {
     const client = getGraphQLClient();
     const response = await client.mutate<DeleteDataSourceResponse>(MUTATIONS.deleteDataSource, {
       source_id: sourceId,
     });
 
-    return response.executesp_delete_data_source[0].deleted_count > 0;
+    return response.deleteDq_sources;
   },
 
   /**
@@ -233,9 +218,9 @@ export const dataSourceService = {
    *
    * @param sourceId The source ID
    * @param currentStatus Current is_active status
-   * @returns Updated DataSource
+   * @returns Updated source info
    */
-  async toggleStatus(sourceId: number, currentStatus: boolean): Promise<DataSource> {
+  async toggleStatus(sourceId: number, currentStatus: boolean): Promise<{ source_id: number; source_name: string }> {
     // Get current source details first
     const source = await this.get(sourceId);
     if (!source) {
@@ -245,6 +230,12 @@ export const dataSourceService = {
     // Update with toggled status
     return this.update(sourceId, {
       source_name: source.source_name,
+      source_type: source.source_type,
+      server_name: source.server_name,
+      database_name: source.database_name,
+      keyvault_uri: source.keyvault_uri || undefined,
+      client_id: source.client_id || undefined,
+      secret_name: source.secret_name || undefined,
       description: source.description || undefined,
       is_active: !currentStatus,
     });

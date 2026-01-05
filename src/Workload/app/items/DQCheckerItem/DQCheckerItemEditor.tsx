@@ -8,9 +8,14 @@
  * - Data Sources: Manage database connections
  * - Checks: Manage DQ checks (TODO)
  * - Results: View check results (TODO)
+ *
+ * GraphQL Pattern (from Data Lineage reference):
+ * - Load item definition to get graphqlEndpoint from settings
+ * - Pass endpoint to GraphQL client at initialization
+ * - Item definition is stored in Fabric and includes user preferences
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { WorkloadClientAPI, ItemTag } from '@ms-fabric/workload-client';
 import {
@@ -31,6 +36,8 @@ import {
 } from '../../components/ItemEditor';
 import { DataSourcesView } from './components/DataSources';
 import { initGraphQLClient } from './services';
+import { getWorkloadItem } from '../../controller/ItemCRUDController';
+import { DQCheckerSettings } from './DQCheckerItemSettings';
 import {
   Database24Regular,
   TaskListSquareLtr24Regular,
@@ -41,6 +48,15 @@ import {
 } from '@fluentui/react-icons';
 import { callOpenSettings } from '../../controller/SettingsController';
 import { DQCheckerItemHelp } from './DQCheckerItemHelp';
+
+// Default settings (must match DQCheckerItemSettings.tsx)
+const DEFAULT_SETTINGS: DQCheckerSettings = {
+  graphqlEndpoint: '',
+  defaultOwner: '',
+  defaultSeverity: 'medium',
+  defaultDimension: 'completeness',
+  defaultTags: '',
+};
 
 const useStyles = makeStyles({
   loadingContainer: {
@@ -176,15 +192,52 @@ export const DQCheckerItemEditor: React.FC<DQCheckerItemEditorProps> = ({
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
 
+  // Item definition state (contains graphqlEndpoint and other settings)
+  // Note: settings stored for future use (passing defaults to child components)
+  const [_settings, setSettings] = useState<DQCheckerSettings>(DEFAULT_SETTINGS);
+
   // Help dialog state
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
-  // Initialize the GraphQL client on mount
+  // Load item definition from Fabric (same pattern as Data Lineage)
+  const loadItemDefinition = useCallback(async () => {
+    if (!itemObjectId) {
+      console.warn('[DQCheckerItemEditor] No itemObjectId, using default settings');
+      return DEFAULT_SETTINGS;
+    }
+
+    try {
+      const loadedItem = await getWorkloadItem<DQCheckerSettings>(
+        workloadClient,
+        itemObjectId,
+        DEFAULT_SETTINGS
+      );
+
+      // Merge with defaults to ensure all fields have values
+      const mergedSettings = { ...DEFAULT_SETTINGS, ...loadedItem.definition };
+      setSettings(mergedSettings);
+      return mergedSettings;
+    } catch (error) {
+      console.warn('[DQCheckerItemEditor] Failed to load item definition, using defaults:', error);
+      return DEFAULT_SETTINGS;
+    }
+  }, [workloadClient, itemObjectId]);
+
+  // Initialize the GraphQL client with endpoint from item definition
+  // Pattern from Data Lineage: load definition first, then get endpoint
   useEffect(() => {
     const initialize = async () => {
       try {
-        // Initialize GraphQL client with workload client for auth
-        initGraphQLClient(workloadClient);
+        // Step 1: Load item definition to get graphqlEndpoint from settings
+        const loadedSettings = await loadItemDefinition();
+
+        // Step 2: Initialize GraphQL client with endpoint from settings
+        const endpoint = loadedSettings.graphqlEndpoint;
+        if (!endpoint) {
+          console.warn('[DQCheckerItemEditor] No graphqlEndpoint configured. Go to Settings to configure.');
+        }
+
+        initGraphQLClient(workloadClient, endpoint);
         setIsInitialized(true);
       } catch (error) {
         console.error('Failed to initialize DQCheckerItem:', error);
@@ -193,7 +246,7 @@ export const DQCheckerItemEditor: React.FC<DQCheckerItemEditorProps> = ({
     };
 
     initialize();
-  }, [workloadClient]);
+  }, [workloadClient, loadItemDefinition]);
 
   // Show loading while initializing
   if (!isInitialized && !initError) {
@@ -259,7 +312,7 @@ export const DQCheckerItemEditor: React.FC<DQCheckerItemEditorProps> = ({
       key: 'settings',
       icon: Settings24Regular,
       label: 'Settings',
-      tooltip: 'Open preferences (outer Fabric toolbar)',
+      tooltip: 'Open preferences',
       onClick: handleOpenSettings,
     },
     {

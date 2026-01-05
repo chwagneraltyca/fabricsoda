@@ -4,29 +4,18 @@
  * Client for calling the Fabric GraphQL API from the workload frontend.
  * Uses the WorkloadClientAPI for authentication.
  *
- * Pattern: acquireToken → fetch() with Bearer token → parse response
+ * Pattern (from Data Lineage reference):
+ * - Endpoint comes from item definition (settings), NOT from process.env
+ * - Initialize with initGraphQLClient(workloadClient, endpoint)
+ * - Endpoint is stored in Fabric item definition and configured via Settings page
+ *
+ * Flow: User configures endpoint in Settings → Saved to item definition →
+ *       Editor loads definition → Passes endpoint to initGraphQLClient
  */
 
 import { WorkloadClientAPI } from '@ms-fabric/workload-client';
 import { FabricAuthenticationService } from '../../../clients/FabricAuthenticationService';
 import { FABRIC_BASE_SCOPES } from '../../../clients/FabricPlatformScopes';
-
-// GraphQL endpoint from environment
-// In production: set via Fabric workload configuration
-// In dev: set via .env.dev
-const getGraphQLEndpoint = (): string => {
-  // Check for environment variable first
-  const envEndpoint = (window as unknown as { __DQ_GRAPHQL_ENDPOINT__?: string }).__DQ_GRAPHQL_ENDPOINT__;
-  if (envEndpoint) return envEndpoint;
-
-  // Fallback to process.env (webpack DefinePlugin)
-  const processEnv = process.env.DQ_GRAPHQL_ENDPOINT;
-  if (processEnv) return processEnv;
-
-  // Default endpoint (configured in your workspace)
-  console.warn('[GraphQLClient] No endpoint configured. Set DQ_GRAPHQL_ENDPOINT.');
-  return '';
-};
 
 // GraphQL response types
 export interface GraphQLResponse<T> {
@@ -51,6 +40,9 @@ export interface GraphQLError extends Error {
  *
  * Provides typed methods for querying and mutating DQ Checker data.
  * Uses Fabric workload SDK authentication.
+ *
+ * IMPORTANT: Endpoint must be provided - it comes from item definition (settings).
+ * Configure endpoint in Settings page, not environment variables.
  */
 export class GraphQLClient {
   private authService: FabricAuthenticationService;
@@ -58,7 +50,11 @@ export class GraphQLClient {
 
   constructor(workloadClient: WorkloadClientAPI, endpoint?: string) {
     this.authService = new FabricAuthenticationService(workloadClient);
-    this.endpoint = endpoint || getGraphQLEndpoint();
+    this.endpoint = endpoint || '';
+
+    if (!this.endpoint) {
+      console.warn('[GraphQLClient] No endpoint provided. Configure GraphQL endpoint in Settings.');
+    }
   }
 
   /**
@@ -70,6 +66,14 @@ export class GraphQLClient {
    * @throws GraphQLError if the request fails or returns errors
    */
   async execute<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
+    // Check endpoint is configured
+    if (!this.endpoint) {
+      throw new Error(
+        'GraphQL endpoint not configured. ' +
+        'Open Settings (gear icon) and configure the GraphQL Endpoint URL, then save and reload.'
+      );
+    }
+
     // Acquire token for GraphQL API
     const token = await this.authService.acquireAccessToken(FABRIC_BASE_SCOPES.POWERBI_API);
 

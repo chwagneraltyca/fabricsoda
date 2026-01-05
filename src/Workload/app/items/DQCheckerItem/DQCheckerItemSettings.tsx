@@ -37,7 +37,10 @@ import {
     Checkmark24Regular,
     Dismiss24Regular,
 } from '@fluentui/react-icons';
-import { WorkloadClientAPI } from '@ms-fabric/workload-client';
+import { FabricAuthenticationService } from '../../clients/FabricAuthenticationService';
+import { FABRIC_BASE_SCOPES } from '../../clients/FabricPlatformScopes';
+import { getWorkloadItem, saveWorkloadItem, ItemWithDefinition } from '../../controller/ItemCRUDController';
+import { PageProps } from '../../App';
 
 const useStyles = makeStyles({
     container: {
@@ -158,17 +161,15 @@ interface ConnectionTestResult {
     lastTested?: Date;
 }
 
-interface DQCheckerItemSettingsProps {
-    workloadClient?: WorkloadClientAPI;
-}
-
-export const DQCheckerItemSettings: React.FC<DQCheckerItemSettingsProps> = ({
+// Use PageProps (same pattern as Data Lineage) - workloadClient is REQUIRED
+export const DQCheckerItemSettings: React.FC<PageProps> = ({
     workloadClient,
 }) => {
     const styles = useStyles();
     const { itemObjectId } = useParams<{ itemObjectId: string }>();
 
-    // State
+    // State - following Data Lineage pattern for Fabric persistence
+    const [item, setItem] = useState<ItemWithDefinition<DQCheckerSettings> | null>(null);
     const [settings, setSettings] = useState<DQCheckerSettings>(DEFAULT_SETTINGS);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -179,40 +180,88 @@ export const DQCheckerItemSettings: React.FC<DQCheckerItemSettingsProps> = ({
         message: 'Not tested',
     });
 
-    // Load settings from item definition
+    // Load settings from Fabric item definition (same pattern as Data Lineage)
     const loadSettings = useCallback(async () => {
+        console.log('[Settings] loadSettings called, itemObjectId:', itemObjectId);
+
+        if (!itemObjectId) {
+            console.error('[Settings] No itemObjectId in URL');
+            setMessage({ type: 'error', text: 'No item ID in URL. Please reopen Settings from item editor.' });
+            setIsLoading(false);
+            return;
+        }
+
         setIsLoading(true);
         try {
-            // In a real implementation, load from item definition via workloadClient
-            // For now, try to load from localStorage as fallback
-            const stored = localStorage.getItem(`dqchecker-settings-${itemObjectId}`);
-            if (stored) {
-                setSettings(JSON.parse(stored));
+            // Load from Fabric backend via ItemCRUDController
+            console.log('[Settings] Calling getWorkloadItem for:', itemObjectId);
+            const loadedItem = await getWorkloadItem<DQCheckerSettings>(
+                workloadClient,
+                itemObjectId,
+                DEFAULT_SETTINGS  // fallback if no saved definition
+            );
+            console.log('[Settings] Loaded item:', loadedItem);
+
+            if (!loadedItem.id) {
+                console.error('[Settings] Item loaded but has no ID - fetch may have failed');
+                setMessage({ type: 'error', text: 'Failed to load item. Check console for details.' });
+                setIsLoading(false);
+                return;
+            }
+
+            setItem(loadedItem);
+            if (loadedItem.definition) {
+                // Merge with defaults to handle new fields
+                setSettings({ ...DEFAULT_SETTINGS, ...loadedItem.definition });
             }
         } catch (error) {
-            console.error('Failed to load settings:', error);
+            console.error('[Settings] Failed to load settings from Fabric:', error);
+            // Keep default settings on error
+            setMessage({ type: 'error', text: 'Failed to load settings from Fabric' });
         } finally {
             setIsLoading(false);
         }
-    }, [itemObjectId]);
+    }, [workloadClient, itemObjectId]);
 
     useEffect(() => {
         loadSettings();
     }, [loadSettings]);
 
-    // Save settings
+    // Save settings to Fabric item definition (same pattern as Data Lineage)
     const handleSave = async () => {
+        console.log('[Settings] handleSave called, item:', item);
+
+        if (!item) {
+            console.error('[Settings] Cannot save: item is null');
+            setMessage({ type: 'error', text: 'Cannot save: item not loaded. Try reloading the page.' });
+            return;
+        }
+
+        if (!item.id) {
+            console.error('[Settings] Cannot save: item has no ID', item);
+            setMessage({ type: 'error', text: 'Cannot save: item has no ID. Item may not have loaded correctly.' });
+            return;
+        }
+
         setIsSaving(true);
         setMessage(null);
         try {
-            // In a real implementation, save to item definition via workloadClient
-            // For now, save to localStorage as fallback
-            localStorage.setItem(`dqchecker-settings-${itemObjectId}`, JSON.stringify(settings));
-            setMessage({ type: 'success', text: 'Settings saved successfully' });
+            console.log('[Settings] Calling saveWorkloadItem with:', { ...item, definition: settings });
+            // Save to Fabric backend via ItemCRUDController
+            await saveWorkloadItem<DQCheckerSettings>(workloadClient, {
+                ...item,
+                definition: settings,
+            });
+
+            // Small delay to ensure Fabric has committed the change (eventual consistency)
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            setMessage({ type: 'success', text: 'Settings saved to Fabric successfully' });
             setIsDirty(false);
         } catch (error) {
-            console.error('Failed to save settings:', error);
-            setMessage({ type: 'error', text: 'Failed to save settings' });
+            console.error('[Settings] Failed to save settings to Fabric:', error);
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            setMessage({ type: 'error', text: `Failed to save: ${errorMsg}` });
         } finally {
             setIsSaving(false);
         }
@@ -239,7 +288,8 @@ export const DQCheckerItemSettings: React.FC<DQCheckerItemSettingsProps> = ({
         }
     };
 
-    // Test GraphQL connection
+    // Test GraphQL connection with Fabric authentication
+    // Pattern from working data lineage project: fabric-datalineage/LineageService.ts
     const handleTestConnection = async () => {
         if (!settings.graphqlEndpoint) {
             setConnectionTest({
@@ -249,47 +299,108 @@ export const DQCheckerItemSettings: React.FC<DQCheckerItemSettingsProps> = ({
             return;
         }
 
-        setConnectionTest({ status: 'testing', message: 'Testing connection...' });
+        if (!workloadClient) {
+            setConnectionTest({
+                status: 'error',
+                message: 'Workload client not available. Cannot authenticate.',
+            });
+            return;
+        }
+
+        setConnectionTest({ status: 'testing', message: 'Authenticating with Fabric...' });
 
         try {
-            // Simple health check query - just check if endpoint responds
+            // Acquire token using Fabric authentication (same pattern as LineageService)
+            const authService = new FabricAuthenticationService(workloadClient);
+
+            let token: string;
+            try {
+                const tokenResult = await authService.acquireAccessToken(FABRIC_BASE_SCOPES.POWERBI_API);
+                token = tokenResult.token;
+            } catch (tokenError: unknown) {
+                // Handle token errors with detailed message
+                const errorMsg = tokenError instanceof Error
+                    ? tokenError.message
+                    : JSON.stringify(tokenError);
+                setConnectionTest({
+                    status: 'error',
+                    message: `Failed to acquire access token: ${errorMsg}`,
+                });
+                return;
+            }
+
+            setConnectionTest({ status: 'testing', message: 'Testing GraphQL connection...' });
+
+            // Query to verify dq_sources table exists (DQ Checker specific)
+            const testQuery = `
+                query TestConnection {
+                    dq_sources(first: 1) {
+                        items {
+                            source_id
+                            source_name
+                        }
+                    }
+                }
+            `;
+
             const response = await fetch(settings.graphqlEndpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
                 },
-                body: JSON.stringify({
-                    query: '{ __typename }',
-                }),
+                body: JSON.stringify({ query: testQuery }),
             });
 
-            if (response.ok) {
-                const data = await response.json();
-                if (data.data) {
+            if (!response.ok) {
+                const errorText = await response.text();
+                setConnectionTest({
+                    status: 'error',
+                    message: `GraphQL request failed (${response.status}): ${errorText.substring(0, 100)}`,
+                });
+                return;
+            }
+
+            interface GraphQLError { message: string }
+            interface GraphQLResult {
+                data?: { dq_sources?: { items?: Array<{ source_id: number; source_name: string }> } };
+                errors?: GraphQLError[];
+            }
+            const result: GraphQLResult = await response.json();
+
+            if (result.errors && result.errors.length > 0) {
+                // GraphQL returned errors - check if it's just missing table
+                const errorMsg = result.errors.map((e) => e.message).join('; ');
+                if (errorMsg.includes('does not exist')) {
                     setConnectionTest({
-                        status: 'success',
-                        message: 'Connection successful',
+                        status: 'error',
+                        message: `Connected but dq_sources table not found. Run the schema DDL first.`,
                         lastTested: new Date(),
                     });
-                } else if (data.errors) {
-                    // GraphQL returned errors but endpoint is reachable
-                    // This is actually expected if auth is required
+                } else {
                     setConnectionTest({
-                        status: 'success',
-                        message: 'Endpoint reachable (authentication may be required)',
+                        status: 'error',
+                        message: `GraphQL error: ${errorMsg}`,
                         lastTested: new Date(),
                     });
                 }
-            } else {
-                setConnectionTest({
-                    status: 'error',
-                    message: `Connection failed: ${response.status} ${response.statusText}`,
-                });
+                return;
             }
-        } catch (error) {
+
+            // Success!
+            const sources = result.data?.dq_sources?.items || [];
+            setConnectionTest({
+                status: 'success',
+                message: `Connected! Found ${sources.length} data source(s).`,
+                lastTested: new Date(),
+            });
+
+        } catch (error: unknown) {
+            // Handle fetch errors (network, CORS, etc.)
+            const errorMessage = error instanceof Error ? error.message : String(error);
             setConnectionTest({
                 status: 'error',
-                message: `Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                message: `Connection failed: ${errorMessage}`,
             });
         }
     };

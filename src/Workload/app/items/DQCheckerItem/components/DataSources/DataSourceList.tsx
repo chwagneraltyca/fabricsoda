@@ -28,7 +28,7 @@ import {
   DatabaseRegular,
   PlugConnectedRegular,
 } from '@fluentui/react-icons';
-import { DataSource, DataSourceFormData } from '../../types/dataSource.types';
+import { DataSource, DataSourceFormData, sourceTypeOptions } from '../../types/dataSource.types';
 import { useDataTableStyles } from '../../../../styles/tokens';
 import { DataSourceForm } from './DataSourceForm';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
@@ -39,6 +39,10 @@ const useStyles = makeStyles({
     maxWidth: '1280px', // max-w-7xl
     marginLeft: 'auto',
     marginRight: 'auto',
+    backgroundColor: tokens.colorNeutralBackground2, // Subtle off-white warmth
+    minHeight: '100%',
+    ...shorthands.padding(tokens.spacingVerticalL, tokens.spacingHorizontalL),
+    ...shorthands.borderRadius(tokens.borderRadiusLarge),
   },
 
   pageHeader: {
@@ -74,34 +78,32 @@ const useStyles = makeStyles({
   },
 
   pageTitle: {
-    fontSize: tokens.fontSizeHero800,
+    fontSize: '28px', // Hero900 equivalent - more impactful
     fontWeight: tokens.fontWeightBold,
     color: tokens.colorNeutralForeground1,
+    letterSpacing: '-0.02em', // Tighter tracking for headlines
+    lineHeight: '1.2',
     margin: 0,
-    lineHeight: tokens.lineHeightHero800,
   },
 
   pageSubtitle: {
-    fontSize: tokens.fontSizeBase300,
-    color: tokens.colorNeutralForeground3,
+    fontSize: tokens.fontSizeBase400, // Increased from Base300
+    color: tokens.colorNeutralForeground2, // Darker for better readability
     margin: 0,
-    marginTop: tokens.spacingVerticalXXS,
+    marginTop: tokens.spacingVerticalS,
   },
 
   filterCard: {
     backgroundColor: tokens.colorNeutralBackground1,
     ...shorthands.borderRadius(tokens.borderRadiusMedium),
-    boxShadow: tokens.shadow4,
-    ...shorthands.border('1px', 'solid', tokens.colorNeutralStroke2),
+    boxShadow: tokens.shadow2, // Lower elevation than table (was shadow4)
+    ...shorthands.border('1px', 'solid', tokens.colorNeutralStroke1), // Lighter border
     ...shorthands.padding(tokens.spacingVerticalM, tokens.spacingHorizontalM),
     marginBottom: tokens.spacingVerticalL,
     display: 'flex',
     alignItems: 'center',
     gap: tokens.spacingHorizontalM,
-    transition: 'box-shadow 0.2s ease-out',
-    '&:hover': {
-      boxShadow: tokens.shadow8,
-    },
+    // No hover elevation change - keeps filter visually secondary
   },
 
   filterCount: {
@@ -139,34 +141,35 @@ const useStyles = makeStyles({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '80px',
-    height: '80px',
+    width: '96px', // Increased from 80px
+    height: '96px',
     ...shorthands.borderRadius('50%'),
-    backgroundColor: tokens.colorNeutralBackground1,
-    boxShadow: tokens.shadow4,
-    marginBottom: tokens.spacingVerticalL,
+    // Gradient background for warmth (Linear/Notion style)
+    background: `linear-gradient(135deg, ${tokens.colorBrandBackground2} 0%, ${tokens.colorNeutralBackground1} 100%)`,
+    boxShadow: tokens.shadow8, // Increased from shadow4
+    marginBottom: tokens.spacingVerticalXL,
   },
 
   emptyStateIcon: {
-    fontSize: '40px',
+    fontSize: '48px', // Increased from 40px
     color: tokens.colorBrandForeground1,
   },
 
   emptyStateTitle: {
-    fontSize: tokens.fontSizeBase500,
+    fontSize: tokens.fontSizeBase600, // Increased from Base500
     fontWeight: tokens.fontWeightSemibold,
     color: tokens.colorNeutralForeground1,
     margin: 0,
-    marginTop: tokens.spacingVerticalM,
-    marginBottom: tokens.spacingVerticalS,
+    marginBottom: tokens.spacingVerticalM,
   },
 
   emptyStateDescription: {
     fontSize: tokens.fontSizeBase300,
     color: tokens.colorNeutralForeground3,
-    marginBottom: tokens.spacingVerticalL,
-    maxWidth: '400px',
-    lineHeight: '1.5',
+    marginBottom: tokens.spacingVerticalXL, // Increased from L
+    maxWidth: '360px', // Tighter for better readability
+    lineHeight: '1.6', // Slightly increased for readability
+    textAlign: 'center' as const,
   },
 
   actionsCell: {
@@ -200,40 +203,60 @@ const useStyles = makeStyles({
 
   // Action button colors - Fabric tokens with semantic colors on hover
   // Per UX Design Proposal: neutral by default, semantic colors on hover
-  // Added transitions for professional polish
+  // Added transitions + scale transform for professional polish (Linear-style)
   actionSuccess: {
     color: tokens.colorNeutralForeground2,
-    transition: 'color 0.15s ease-out, background-color 0.15s ease-out',
+    backgroundColor: tokens.colorSubtleBackground, // Subtle tint at rest
+    transition: 'all 0.15s cubic-bezier(0.33, 1, 0.68, 1)', // easeOutCubic
     '&:hover': {
       color: tokens.colorPaletteGreenForeground1,
       backgroundColor: tokens.colorPaletteGreenBackground1,
+      transform: 'scale(1.05)', // Subtle grow
+    },
+    '&:active': {
+      transform: 'scale(0.98)', // Press feedback
     },
   },
 
   actionWarning: {
     color: tokens.colorNeutralForeground2,
-    transition: 'color 0.15s ease-out, background-color 0.15s ease-out',
+    backgroundColor: tokens.colorSubtleBackground,
+    transition: 'all 0.15s cubic-bezier(0.33, 1, 0.68, 1)',
     '&:hover': {
       color: tokens.colorPaletteYellowForeground1,
       backgroundColor: tokens.colorPaletteYellowBackground1,
+      transform: 'scale(1.05)',
+    },
+    '&:active': {
+      transform: 'scale(0.98)',
     },
   },
 
   actionPrimary: {
     color: tokens.colorNeutralForeground2,
-    transition: 'color 0.15s ease-out, background-color 0.15s ease-out',
+    backgroundColor: tokens.colorSubtleBackground,
+    transition: 'all 0.15s cubic-bezier(0.33, 1, 0.68, 1)',
     '&:hover': {
       color: tokens.colorBrandForeground1,
       backgroundColor: tokens.colorBrandBackground2,
+      transform: 'scale(1.05)',
+    },
+    '&:active': {
+      transform: 'scale(0.98)',
     },
   },
 
   actionDanger: {
     color: tokens.colorNeutralForeground2,
-    transition: 'color 0.15s ease-out, background-color 0.15s ease-out',
+    backgroundColor: tokens.colorSubtleBackground,
+    transition: 'all 0.15s cubic-bezier(0.33, 1, 0.68, 1)',
     '&:hover': {
       color: tokens.colorPaletteRedForeground1,
       backgroundColor: tokens.colorPaletteRedBackground1,
+      transform: 'scale(1.05)',
+    },
+    '&:active': {
+      transform: 'scale(0.98)',
     },
   },
 });
@@ -400,7 +423,8 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
             <thead className={tableStyles.thead}>
               <tr>
                 <th className={tableStyles.th}>Name</th>
-                <th className={tableStyles.th}>Description</th>
+                <th className={tableStyles.th}>Type</th>
+                <th className={tableStyles.th}>Server / Database</th>
                 <th className={tableStyles.th}>Status</th>
                 <th className={mergeClasses(tableStyles.th, tableStyles.thRight)}>
                   Actions
@@ -413,8 +437,18 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
                   <td className={mergeClasses(tableStyles.td, tableStyles.cellPrimary)}>
                     {source.source_name}
                   </td>
+                  <td className={tableStyles.td}>
+                    <Badge
+                      appearance="filled"
+                      className={styles.badgeType}
+                    >
+                      {sourceTypeOptions.find(o => o.value === source.source_type)?.label || source.source_type}
+                    </Badge>
+                  </td>
                   <td className={mergeClasses(tableStyles.td, tableStyles.cellSecondary)}>
-                    {source.description || '-'}
+                    {source.server_name && source.database_name
+                      ? `${source.server_name} / ${source.database_name}`
+                      : source.description || '-'}
                   </td>
                   <td className={tableStyles.td}>
                     <Badge

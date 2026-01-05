@@ -59,6 +59,12 @@ GO
 CREATE TABLE dbo.dq_sources (
     source_id INT IDENTITY(1,1) PRIMARY KEY,
     source_name NVARCHAR(100) NOT NULL,
+    source_type NVARCHAR(50) NOT NULL DEFAULT 'fabric_warehouse',  -- fabric_warehouse, fabric_sqldb, spark_sql, azure_sql
+    server_name NVARCHAR(255) NOT NULL DEFAULT '',                  -- Fabric SQL endpoint
+    database_name NVARCHAR(128) NOT NULL DEFAULT '',                -- Artifact/database name
+    keyvault_uri NVARCHAR(500),                                     -- Azure Key Vault URI (nullable, for per-source KV)
+    client_id NVARCHAR(100),                                        -- Service Principal client ID (nullable)
+    secret_name NVARCHAR(128),                                      -- Key Vault secret name (nullable)
     description NVARCHAR(500),
     is_active BIT NOT NULL DEFAULT 1,
     created_at DATETIME2 DEFAULT GETDATE(),
@@ -219,7 +225,7 @@ GO
 -- ============================================================================
 
 CREATE OR ALTER VIEW dbo.vw_active_data_sources AS
-SELECT source_id, source_name, description
+SELECT source_id, source_name, source_type, server_name, database_name, keyvault_uri, client_id, secret_name, description
 FROM dbo.dq_sources
 WHERE is_active = 1;
 GO
