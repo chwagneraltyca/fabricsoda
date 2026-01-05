@@ -52,6 +52,12 @@ erDiagram
     dq_sources {
         int source_id PK
         string source_name
+        string source_type "fabric_warehouse|fabric_sqldb|spark_sql|azure_sql"
+        string server_name "Fabric endpoint"
+        string database_name "Artifact name"
+        string keyvault_uri "nullable"
+        string client_id "nullable"
+        string secret_name "nullable"
         string description
         bit is_active
         datetime created_at
@@ -189,16 +195,19 @@ erDiagram
                                           │
                                           │ N:M
                                           │
-┌──────────────────┐          ┌───────────┴─────────────┐
-│   dq_sources     │          │     dq_testcases        │  ← TABLE SCOPE
-│──────────────────│   1:N    │─────────────────────────│
-│ source_id (PK)   │◄─────────│ testcase_id (PK)        │
-│ source_name      │          │ testcase_name           │
-│ description      │          │ source_id (FK)          │
-│ is_active        │          │ schema_name             │
-└──────────────────┘          │ table_name              │
-                              │ owner, tags, is_active  │
-                              └───────────┬─────────────┘
+┌────────────────────────┐    ┌───────────┴─────────────┐
+│      dq_sources        │    │     dq_testcases        │  ← TABLE SCOPE
+│────────────────────────│1:N │─────────────────────────│
+│ source_id (PK)         │◄───│ testcase_id (PK)        │
+│ source_name            │    │ testcase_name           │
+│ source_type            │    │ source_id (FK)          │
+│ server_name            │    │ schema_name             │
+│ database_name          │    │ table_name              │
+│ keyvault_uri (nullable)│    │ owner, tags, is_active  │
+│ client_id (nullable)   │    └───────────┬─────────────┘
+│ secret_name (nullable) │
+│ description, is_active │
+└────────────────────────┘
                                           │
                                           │ 1:N
                                           │

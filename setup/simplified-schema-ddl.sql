@@ -76,11 +76,23 @@ GO
 -- TABLES: Core DQ Checker metadata
 -- ============================================================================
 
--- Data Sources table (Fabric warehouses to check)
+-- Data Sources table (Fabric warehouses/databases to check)
 CREATE TABLE dbo.dq_sources (
     source_id INT IDENTITY(1,1) PRIMARY KEY,
     source_name NVARCHAR(100) NOT NULL,
-    description NVARCHAR(500),
+    source_type NVARCHAR(50) NULL,            -- 'fabric_warehouse' | 'fabric_sqldb' | 'spark_sql' | 'azure_sql'
+
+    -- Connection
+    server_name NVARCHAR(255) NULL,           -- Fabric endpoint (*.fabric.microsoft.com)
+    database_name NVARCHAR(255) NULL,         -- Database/warehouse artifact name
+
+    -- Authentication (NULL = use notebook defaults)
+    keyvault_uri NVARCHAR(255) NULL,          -- Key Vault URL for secrets
+    client_id NVARCHAR(100) NULL,             -- Service Principal client ID
+    secret_name NVARCHAR(100) NULL,           -- Key Vault secret name for client_secret
+
+    -- Metadata
+    description NVARCHAR(500) NULL,
     is_active BIT NOT NULL DEFAULT 1,
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE()
@@ -236,9 +248,18 @@ GO
 -- VIEWS: GraphQL API layer
 -- ============================================================================
 
--- Active data sources for dropdowns
+-- Active data sources for dropdowns (includes connection info)
 CREATE OR ALTER VIEW dbo.vw_active_data_sources AS
-SELECT source_id, source_name, description
+SELECT
+    source_id,
+    source_name,
+    source_type,
+    server_name,
+    database_name,
+    keyvault_uri,
+    client_id,
+    secret_name,
+    description
 FROM dbo.dq_sources
 WHERE is_active = 1;
 GO
@@ -364,14 +385,26 @@ GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_create_data_source
     @source_name NVARCHAR(100),
+    @source_type NVARCHAR(50) = 'fabric_warehouse',
+    @server_name NVARCHAR(255) = NULL,
+    @database_name NVARCHAR(255) = NULL,
+    @keyvault_uri NVARCHAR(255) = NULL,
+    @client_id NVARCHAR(100) = NULL,
+    @secret_name NVARCHAR(100) = NULL,
     @description NVARCHAR(500) = NULL,
     @is_active BIT = 1
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    INSERT INTO dbo.dq_sources (source_name, description, is_active)
-    VALUES (@source_name, @description, @is_active);
+    INSERT INTO dbo.dq_sources (
+        source_name, source_type, server_name, database_name,
+        keyvault_uri, client_id, secret_name, description, is_active
+    )
+    VALUES (
+        @source_name, @source_type, @server_name, @database_name,
+        @keyvault_uri, @client_id, @secret_name, @description, @is_active
+    );
 
     SELECT * FROM dbo.dq_sources WHERE source_id = SCOPE_IDENTITY();
 END;
@@ -380,6 +413,12 @@ GO
 CREATE OR ALTER PROCEDURE dbo.sp_update_data_source
     @source_id INT,
     @source_name NVARCHAR(100),
+    @source_type NVARCHAR(50) = NULL,
+    @server_name NVARCHAR(255) = NULL,
+    @database_name NVARCHAR(255) = NULL,
+    @keyvault_uri NVARCHAR(255) = NULL,
+    @client_id NVARCHAR(100) = NULL,
+    @secret_name NVARCHAR(100) = NULL,
     @description NVARCHAR(500) = NULL,
     @is_active BIT = 1
 AS
@@ -388,6 +427,12 @@ BEGIN
 
     UPDATE dbo.dq_sources
     SET source_name = @source_name,
+        source_type = COALESCE(@source_type, source_type),
+        server_name = COALESCE(@server_name, server_name),
+        database_name = COALESCE(@database_name, database_name),
+        keyvault_uri = @keyvault_uri,
+        client_id = @client_id,
+        secret_name = @secret_name,
         description = @description,
         is_active = @is_active,
         updated_at = GETDATE()
