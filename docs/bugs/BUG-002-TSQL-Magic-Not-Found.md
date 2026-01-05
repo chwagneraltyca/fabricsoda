@@ -12,9 +12,11 @@ When running the notebook interactively in Fabric, the `%%tsql` magic command fa
 UsageError: Cell magic `%%tsql` not found.
 ```
 
-## Root Cause (Suspected)
+## Root Cause
 
-The notebook is running as **PySpark** instead of **Python** notebook. The `%%tsql` magic is ONLY available in Fabric Python notebooks (not PySpark).
+**UNKNOWN** - The notebook IS confirmed to be Python type (not PySpark), and metadata is correct. Further investigation needed.
+
+**Ruled out:** PySpark vs Python notebook type (confirmed Python).
 
 ## Investigation Findings
 
@@ -35,14 +37,12 @@ From [Microsoft Learn](https://learn.microsoft.com/en-us/fabric/data-engineering
 
 This suggests the notebook type is determined **server-side in Fabric**, not just by metadata.
 
-## Likely Cause
+## Possible Causes (To Investigate)
 
-1. The notebook was uploaded to Fabric when it was still a PySpark notebook
-2. Later metadata fixes were uploaded but Fabric retained the original notebook type
-3. Need to either:
-   - **Option A:** Convert to Python via Fabric UI (Home tab > Language dropdown > Python)
-   - **Option B:** Delete and re-create the notebook in Fabric as Python type
-   - **Option C:** Upload with correct metadata to a NEW notebook item
+1. **Preview feature limitation** - `%%tsql` magic is in preview and may have restrictions
+2. **Workspace/tenant setting** - May require specific Fabric capacity or tenant settings
+3. **Notebook session state** - May need kernel restart or fresh session
+4. **Missing extension** - The tsql magic may need explicit loading in some cases
 
 ## Workaround (Alternative Approach)
 
@@ -56,13 +56,13 @@ df = conn.query("SELECT * FROM dq_sources")
 
 This works in both Python and PySpark notebooks.
 
-## Fix Steps
+## Next Steps (To Try)
 
-1. Open notebook in Fabric UI
-2. Go to **Home** tab
-3. Change **Language** dropdown from "PySpark (Python)" to "Python"
-4. Verify kernel shows "Python 3.11" (not Spark)
-5. Re-run the `%%tsql` cell
+1. Verify kernel is "Python 3.11" in Fabric UI (already confirmed Python)
+2. Try restarting kernel before running `%%tsql` cell
+3. Check if `%%tsql` works in a brand new Python notebook in same workspace
+4. Check Fabric admin portal for any preview feature settings
+5. If all else fails, use `notebookutils.data.connect_to_artifact()` workaround
 
 ## Files Involved
 
