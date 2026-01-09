@@ -2,6 +2,17 @@
 
 > **MANDATORY**: These principles must be followed throughout the project.
 
+## Architecture Overview
+
+**Current Architecture (OneLake JSON):**
+- Frontend: CRUD via OneLake JSON files (no cold start, <200ms)
+- Notebook: Read JSON config via Spark external tables, write results to Parquet
+- Storage: `Files/config/data/` for JSON, `Tables/` for Parquet
+
+**Full schema:** `docs/specs/data-model/json-data-model.md`
+
+---
+
 ## Fabric Workload SDK Guidelines
 
 Based on [Microsoft Fabric Extensibility Toolkit](https://learn.microsoft.com/en-us/fabric/extensibility-toolkit/implementation-guide):
@@ -34,114 +45,110 @@ Based on [Microsoft Fabric Extensibility Toolkit](https://learn.microsoft.com/en
 
 ---
 
-## 1. Data Model
+## 1. Data Model (OneLake JSON)
 
-### ER Relationships
+### Entity Relationships
 
 ```
-Suite ←─N:M─→ suites_testcases ←─N:M─→ Testcase ──1:N──→ Check
-                                              │
-                                    Extension Tables (1:0..1)
+Suite (suites/*.json)
+  └── testcase_ids[]: N:M references
+        │
+        ▼
+Testcase (testcases/*.json)
+  ├── source_id: FK to Source (N:1)
+  │     │
+  │     ▼
+  │   Source (sources/*.json)
+  │
+  └── checks[]: Embedded checks (composition)
 ```
 
-| Relationship | Type | Table |
-|--------------|------|-------|
-| Suite ↔ Testcase | N:M | `suites_testcases` |
-| Testcase → Check | 1:N | `dq_checks.testcase_id` |
-| Check → Extension | 1:0..1 | `dq_checks_*` tables |
+| Relationship | Type | Implementation |
+|--------------|------|----------------|
+| Suite ↔ Testcase | N:M | `testcase_ids[]` array in suite |
+| Testcase → Source | N:1 | `source_id` FK |
+| Testcase → Check | 1:N | Embedded `checks[]` array |
+
+### Storage Structure
+
+```
+Files/config/data/
+├── sources/*.json       # 3-5 files, connection configs
+├── testcases/*.json     # 80-140 files, embedded checks
+└── suites/*.json        # 40-60 files, testcase references
+
+Tables/
+├── dq_results/          # Parquet, notebook writes
+└── dq_execution_logs/   # Parquet, notebook writes
+```
 
 ### Schema File
 
-**Source of truth:** `setup/simplified-schema-minimal-ddl.sql`
+**Source of truth:** `docs/specs/data-model/json-data-model.md`
 
 ## 2. Naming Conventions
 
-### Tables
+### JSON Files
 
 | Pattern | Example | Usage |
 |---------|---------|-------|
-| `dq_*` | `dq_sources`, `dq_checks` | Core DQ entities |
-| `dq_checks_*` | `dq_checks_freshness` | Check extension tables |
-| `fabric_*` | `fabric_metadata` | Cached Fabric data |
+| `sources/{uuid}.json` | `sources/src-abc123.json` | Connection configs |
+| `testcases/{uuid}.json` | `testcases/tc-def456.json` | Table scope + embedded checks |
+| `suites/{uuid}.json` | `suites/suite-ghi789.json` | Business metadata + testcase refs |
 
-### Views
-
-| Pattern | Example | Usage |
-|---------|---------|-------|
-| `vw_*` | `vw_checks_complete` | API/reporting views |
-| `vw_*_complete` | `vw_checks_complete` | Joins all related data |
-| `vw_orphan_*` | `vw_orphan_testcases` | NOT EXISTS filters |
-
-### Stored Procedures
+### TypeScript Services
 
 | Pattern | Example | Usage |
 |---------|---------|-------|
-| `sp_create_*` | `sp_create_freshness_check` | Multi-table inserts |
-| `sp_update_*` | - | Multi-table updates |
-| `sp_delete_*` | - | Cascade deletes |
+| `*Service.ts` | `sourceService.ts` | CRUD operations for entity |
+| `onelakeJsonService.ts` | - | Low-level OneLake DFS operations |
 
-## 3. API Strategy
+## 3. Data Access Strategy
 
-### Hybrid Approach
+### Frontend (OneLake JSON via DFS API)
 
-| Operation | Method | Rationale |
-|-----------|--------|-----------|
-| Simple CRUD | Auto-generated GraphQL | Single table, no logic |
-| Extension Checks | Stored Procedure | Multi-table atomicity |
-| Batch Operations | Stored Procedure | Transaction required |
+| Operation | Pattern |
+|-----------|---------|
+| Load all | Parallel read of all JSON files on app start |
+| Create | Generate UUID, write JSON file |
+| Update | Read file, modify, write with version check |
+| Delete | Delete JSON file |
 
-### Auto-Generated Mutations
+### Notebook (Spark)
 
-Use for these tables (simple CRUD):
-- `dq_sources`
-- `dq_suites`
-- `dq_testcases`
-- `dq_checks` (standard types only)
-- `suites_testcases`
-
-### SP-Backed Mutations
-
-Use for extension check types:
-- `executesp_create_freshness_check`
-- `executesp_create_schema_check`
-- `executesp_create_reference_check`
-- `executesp_create_scalar_comparison_check`
-- `executesp_create_custom_sql_check`
+| Operation | Method |
+|-----------|--------|
+| Read config | External tables on JSON files |
+| Write results | Internal Parquet tables |
 
 ## 4. Check Types
 
-### Standard (Single Table)
+All check types supported via polymorphic `config` object in embedded checks:
 
-| Metric | Extension Table | SP Required |
-|--------|-----------------|-------------|
-| row_count | - | No |
-| missing_count | - | No |
-| duplicate_count | - | No |
-| invalid_count | - | No |
-| values_in_set | - | No |
-
-### Extended (Multi-Table)
-
-| Metric | Extension Table | SP Required |
-|--------|-----------------|-------------|
-| freshness | `dq_checks_freshness` | **Yes** |
-| schema | `dq_checks_schema` | **Yes** |
-| reference | `dq_checks_reference` | **Yes** |
-| scalar_comparison | `dq_checks_scalar` | **Yes** |
-| custom_sql | `dq_checks_custom` | **Yes** |
+| Metric | Config Fields |
+|--------|---------------|
+| `row_count`, `missing_*` | (none - uses thresholds only) |
+| `freshness` | `freshness_column`, `threshold_value`, `threshold_unit` |
+| `schema` | `required_columns[]`, `forbidden_columns[]`, `column_types{}` |
+| `reference` | `reference_table`, `reference_column`, `reference_sql_query` |
+| `scalar_comparison` | `query_a`, `query_b`, `comparison_operator`, `tolerance` |
+| `custom_sql` | `custom_sql_query` |
 
 ## 5. Frontend Patterns
 
-### Cascading Dropdowns
+### Load-All-Cache-In-Memory
 
 ```
-Source → Schema → Table → Column
-```
+App Start (~300ms)
+├── Load sources/*.json → memory
+├── Load testcases/*.json → memory
+└── Load suites/*.json → memory
 
-Data from `fabric_metadata` table via views:
-- `vw_fabric_schemas`
-- `vw_fabric_tables`
-- `vw_fabric_columns`
+After Load (instant)
+├── Dropdowns → filter from memory
+├── List views → sort/filter from memory
+└── Mutations → update memory + persist to OneLake
+```
 
 ### Two Entry Points
 
@@ -152,17 +159,23 @@ Data from `fabric_metadata` table via views:
 
 ## 6. Reporting
 
-### Virtual Data Mart
+### Results Storage (Parquet)
 
-- No ETL, no duplication
-- Power BI DirectQuery to views
-- See: `docs/specs/data-model/VIRTUAL-DATAMART.md`
+- Notebook writes execution logs and results to Parquet tables
+- Power BI DirectLake on Parquet files
+- No ETL required
 
 ## Reference Documents
 
 | Document | Location | Purpose |
 |----------|----------|---------|
-| ER Model | `docs/specs/data-model/er-model-simplified.md` | Entity relationships |
-| Virtual Datamart | `docs/specs/data-model/VIRTUAL-DATAMART.md` | Reporting layer |
-| DDL | `setup/simplified-schema-minimal-ddl.sql` | Schema definition |
-| Design Analysis | `docs/design/SIMPLIFICATION-ANALYSIS.md` | Full design rationale |
+| JSON Data Model | `docs/specs/data-model/json-data-model.md` | Current data model |
+| Notebook Implementation | `docs/specs/FABRIC-NOTEBOOK-IMPLEMENTATION.md` | Soda Core execution |
+| Automation | `docs/specs/AUTOMATION.md` | PowerShell scripts |
+
+## Archived Documents (GraphQL/SQL Database)
+
+Previous architecture documentation moved to `archive/docs/`:
+- `archive/docs/specs/data-model/er-model-simplified.md` - SQL ER model
+- `archive/docs/specs/FABRIC-ARCHITECTURE.md` - SQL + GraphQL architecture
+- `archive/docs/design/SIMPLIFICATION-ANALYSIS.md` - SQL schema analysis

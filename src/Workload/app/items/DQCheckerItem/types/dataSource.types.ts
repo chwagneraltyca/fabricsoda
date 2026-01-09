@@ -1,40 +1,18 @@
 /**
- * Data Source Types
+ * Data Source UI Types
  *
- * TypeScript interfaces for data sources matching the ER model.
- * Field names match the dq_sources table exactly.
+ * Form-specific types for data source CRUD components.
+ * Uses Source as base entity type.
  *
- * See: docs/specs/data-model/er-model-simplified.md
+ * See: docs/specs/data-model/json-data-model.md
  */
 
-// Source type options (matches ER model)
-export type SourceType = 'fabric_warehouse' | 'fabric_sqldb' | 'spark_sql' | 'azure_sql';
+import { Source, SourceType } from './source.types';
 
-// Source type display options
-export const sourceTypeOptions: { value: SourceType; label: string; description: string }[] = [
-  { value: 'fabric_warehouse', label: 'Fabric Warehouse', description: 'Microsoft Fabric Data Warehouse' },
-  { value: 'fabric_sqldb', label: 'Fabric SQL DB', description: 'Microsoft Fabric SQL Database' },
-  { value: 'azure_sql', label: 'Azure SQL', description: 'Azure SQL Database' },
-  { value: 'spark_sql', label: 'Spark SQL', description: 'Spark SQL endpoint' },
-];
+// Re-export Source as DataSource for UI component compatibility
+export type DataSource = Source;
 
-// Data source from database (matches ER model)
-export interface DataSource {
-  source_id: number;
-  source_name: string;
-  source_type: SourceType;
-  server_name: string;
-  database_name: string;
-  keyvault_uri: string | null;   // Azure Key Vault URI (optional, for per-source KV)
-  client_id: string | null;       // Service Principal client ID (optional)
-  secret_name: string | null;     // Key Vault secret name (optional)
-  description: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-// Form data for create/update
+// Form data for create/update (subset of Source fields)
 export interface DataSourceFormData {
   source_name: string;
   source_type: SourceType;
@@ -45,49 +23,6 @@ export interface DataSourceFormData {
   secret_name?: string;
   description?: string;
   is_active: boolean;
-}
-
-// GraphQL query response
-export interface DataSourcesQueryResponse {
-  dq_sources: {
-    items: DataSource[];
-  };
-}
-
-// GraphQL mutation response (create)
-export interface CreateDataSourceResponse {
-  createDq_sources: {
-    source_id: number;
-    source_name: string;
-  };
-}
-
-// GraphQL mutation response (update)
-export interface UpdateDataSourceResponse {
-  updateDq_sources: {
-    source_id: number;
-    source_name: string;
-  };
-}
-
-// GraphQL mutation response (delete)
-export interface DeleteDataSourceResponse {
-  deleteDq_sources: {
-    source_id: number;
-  };
-}
-
-// Connection test status
-export type ConnectionStatus = 'idle' | 'checking' | 'success' | 'error';
-
-// Connection test result
-export interface ConnectionTestResult {
-  status: ConnectionStatus;
-  message?: string;
-  serverInfo?: {
-    version: string;
-    database: string;
-  };
 }
 
 // Validation rules

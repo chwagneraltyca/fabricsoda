@@ -1,10 +1,8 @@
 /**
- * DataSourceList Component
+ * TestcaseList Component
  *
- * Data table displaying all data sources with actions.
- * Matches legacy Flask table styling using FluentUI v9 components.
- *
- * Legacy reference: Legacy/flask_app/templates/data_sources/manage.html
+ * Data table displaying all testcases with actions.
+ * Shows testcase name, table reference, check count, status.
  */
 
 import React, { useState, useCallback } from 'react';
@@ -18,29 +16,38 @@ import {
   tokens,
   shorthands,
   mergeClasses,
+  Menu,
+  MenuItem,
+  MenuList,
+  MenuPopover,
+  MenuTrigger,
+  Drawer,
 } from '@fluentui/react-components';
 import {
   Add24Regular,
   Edit24Regular,
   Delete24Regular,
   ArrowSwap24Regular,
-  Flash24Regular,
-  DatabaseRegular,
-  PlugConnectedRegular,
+  TableSimple24Regular,
+  Checkmark24Regular,
+  ChevronDown16Regular,
+  Flash20Regular,
+  TableMultiple20Regular,
 } from '@fluentui/react-icons';
-import { DataSource, DataSourceFormData } from '../../types/dataSource.types';
-import { sourceTypeOptions } from '../../types/source.types';
+import { Testcase, TestcaseInput, getTableRef, Source } from '../../types';
 import { useDataTableStyles } from '../../../../styles/tokens';
-import { DataSourceForm } from './DataSourceForm';
-import { DeleteConfirmDialog } from './DeleteConfirmDialog';
+import { TestcaseForm } from './TestcaseForm';
+import { DeleteConfirmDialog } from '../DataSources/DeleteConfirmDialog';
+import { QuickCheckPanel } from './QuickCheckPanel';
+import { TestcaseWizard } from './TestcaseWizard';
 
 // Component-specific styles
 const useStyles = makeStyles({
   container: {
-    maxWidth: '1280px', // max-w-7xl
+    maxWidth: '1280px',
     marginLeft: 'auto',
     marginRight: 'auto',
-    backgroundColor: tokens.colorNeutralBackground2, // Subtle off-white warmth
+    backgroundColor: tokens.colorNeutralBackground2,
     minHeight: '100%',
     ...shorthands.padding(tokens.spacingVerticalL, tokens.spacingHorizontalL),
     ...shorthands.borderRadius(tokens.borderRadiusLarge),
@@ -79,17 +86,17 @@ const useStyles = makeStyles({
   },
 
   pageTitle: {
-    fontSize: '28px', // Hero900 equivalent - more impactful
+    fontSize: '28px',
     fontWeight: tokens.fontWeightBold,
     color: tokens.colorNeutralForeground1,
-    letterSpacing: '-0.02em', // Tighter tracking for headlines
+    letterSpacing: '-0.02em',
     lineHeight: '1.2',
     margin: 0,
   },
 
   pageSubtitle: {
-    fontSize: tokens.fontSizeBase400, // Increased from Base300
-    color: tokens.colorNeutralForeground2, // Darker for better readability
+    fontSize: tokens.fontSizeBase400,
+    color: tokens.colorNeutralForeground2,
     margin: 0,
     marginTop: tokens.spacingVerticalS,
   },
@@ -97,14 +104,13 @@ const useStyles = makeStyles({
   filterCard: {
     backgroundColor: tokens.colorNeutralBackground1,
     ...shorthands.borderRadius(tokens.borderRadiusMedium),
-    boxShadow: tokens.shadow2, // Lower elevation than table (was shadow4)
-    ...shorthands.border('1px', 'solid', tokens.colorNeutralStroke1), // Lighter border
+    boxShadow: tokens.shadow2,
+    ...shorthands.border('1px', 'solid', tokens.colorNeutralStroke1),
     ...shorthands.padding(tokens.spacingVerticalM, tokens.spacingHorizontalM),
     marginBottom: tokens.spacingVerticalL,
     display: 'flex',
     alignItems: 'center',
     gap: tokens.spacingHorizontalM,
-    // No hover elevation change - keeps filter visually secondary
   },
 
   filterCount: {
@@ -126,7 +132,6 @@ const useStyles = makeStyles({
     },
   },
 
-  // Empty state - follows Fabric UX pattern with larger icon
   emptyState: {
     display: 'flex',
     flexDirection: 'column' as const,
@@ -142,22 +147,21 @@ const useStyles = makeStyles({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '96px', // Increased from 80px
+    width: '96px',
     height: '96px',
     ...shorthands.borderRadius('50%'),
-    // Gradient background for warmth (Linear/Notion style)
     background: `linear-gradient(135deg, ${tokens.colorBrandBackground2} 0%, ${tokens.colorNeutralBackground1} 100%)`,
-    boxShadow: tokens.shadow8, // Increased from shadow4
+    boxShadow: tokens.shadow8,
     marginBottom: tokens.spacingVerticalXL,
   },
 
   emptyStateIcon: {
-    fontSize: '48px', // Increased from 40px
+    fontSize: '48px',
     color: tokens.colorBrandForeground1,
   },
 
   emptyStateTitle: {
-    fontSize: tokens.fontSizeBase600, // Increased from Base500
+    fontSize: tokens.fontSizeBase600,
     fontWeight: tokens.fontWeightSemibold,
     color: tokens.colorNeutralForeground1,
     margin: 0,
@@ -167,9 +171,9 @@ const useStyles = makeStyles({
   emptyStateDescription: {
     fontSize: tokens.fontSizeBase300,
     color: tokens.colorNeutralForeground3,
-    marginBottom: tokens.spacingVerticalXL, // Increased from L
-    maxWidth: '360px', // Tighter for better readability
-    lineHeight: '1.6', // Slightly increased for readability
+    marginBottom: tokens.spacingVerticalXL,
+    maxWidth: '360px',
+    lineHeight: '1.6',
     textAlign: 'center' as const,
   },
 
@@ -179,7 +183,6 @@ const useStyles = makeStyles({
     gap: tokens.spacingHorizontalXS,
   },
 
-  // Badge variants using Fabric tokens
   badgeActive: {
     backgroundColor: tokens.colorPaletteGreenBackground1,
     color: tokens.colorPaletteGreenForeground1,
@@ -190,7 +193,7 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground2,
   },
 
-  badgeType: {
+  badgeChecks: {
     backgroundColor: tokens.colorBrandBackground2,
     color: tokens.colorBrandForeground1,
   },
@@ -200,23 +203,6 @@ const useStyles = makeStyles({
     justifyContent: 'center',
     alignItems: 'center',
     ...shorthands.padding(tokens.spacingVerticalXXL),
-  },
-
-  // Action button colors - Fabric tokens with semantic colors on hover
-  // Per UX Design Proposal: neutral by default, semantic colors on hover
-  // Added transitions + scale transform for professional polish (Linear-style)
-  actionSuccess: {
-    color: tokens.colorNeutralForeground2,
-    backgroundColor: tokens.colorSubtleBackground, // Subtle tint at rest
-    transition: 'all 0.15s cubic-bezier(0.33, 1, 0.68, 1)', // easeOutCubic
-    '&:hover': {
-      color: tokens.colorPaletteGreenForeground1,
-      backgroundColor: tokens.colorPaletteGreenBackground1,
-      transform: 'scale(1.05)', // Subtle grow
-    },
-    '&:active': {
-      transform: 'scale(0.98)', // Press feedback
-    },
   },
 
   actionWarning: {
@@ -260,33 +246,32 @@ const useStyles = makeStyles({
       transform: 'scale(0.98)',
     },
   },
+
+  cellSecondary: {
+    color: tokens.colorNeutralForeground2,
+    fontFamily: tokens.fontFamilyMonospace,
+    fontSize: tokens.fontSizeBase200,
+  },
 });
 
-interface DataSourceListProps {
-  /** Array of data sources to display */
-  dataSources: DataSource[];
-  /** Whether data is loading */
+interface TestcaseListProps {
+  testcases: Testcase[];
+  sources: Source[];
   isLoading: boolean;
-  /** Callback when a data source is created */
-  onCreate: (data: DataSourceFormData) => Promise<void>;
-  /** Callback when a data source is updated */
-  onUpdate: (sourceId: string, data: DataSourceFormData) => Promise<void>;
-  /** Callback when a data source is deleted */
-  onDelete: (sourceId: string) => Promise<void>;
-  /** Callback when active status is toggled */
-  onToggleStatus: (sourceId: string, currentStatus: boolean) => Promise<void>;
-  /** Optional callback for testing connection (future feature) */
-  onTestConnection?: (sourceId: string) => Promise<void>;
+  onCreate: (data: TestcaseInput) => Promise<void>;
+  onUpdate: (testcaseId: string, data: TestcaseInput) => Promise<void>;
+  onDelete: (testcaseId: string) => Promise<void>;
+  onToggleStatus: (testcaseId: string, currentStatus: boolean) => Promise<void>;
 }
 
-export const DataSourceList: React.FC<DataSourceListProps> = ({
-  dataSources,
+export const TestcaseList: React.FC<TestcaseListProps> = ({
+  testcases,
+  sources,
   isLoading,
   onCreate,
   onUpdate,
   onDelete,
   onToggleStatus,
-  onTestConnection,
 }) => {
   const styles = useStyles();
   const tableStyles = useDataTableStyles();
@@ -296,65 +281,95 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
 
   // Form dialog state
   const [formOpen, setFormOpen] = useState(false);
-  const [editingSource, setEditingSource] = useState<DataSource | null>(null);
+  const [editingTestcase, setEditingTestcase] = useState<Testcase | null>(null);
 
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deletingSource, setDeletingSource] = useState<DataSource | null>(null);
+  const [deletingTestcase, setDeletingTestcase] = useState<Testcase | null>(null);
+
+  // New: Quick Check and Table Checks panels
+  const [quickCheckOpen, setQuickCheckOpen] = useState(false);
+  const [tableChecksOpen, setTableChecksOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Filtered data
-  const filteredSources = activeOnly
-    ? dataSources.filter(s => s.is_active)
-    : dataSources;
+  const filteredTestcases = activeOnly
+    ? testcases.filter(t => t.is_active)
+    : testcases;
 
-  // Open form for create
-  const handleOpenCreate = useCallback(() => {
-    setEditingSource(null);
-    setFormOpen(true);
-  }, []);
+  // Get source name for display
+  const getSourceName = (sourceId: string) => {
+    const source = sources.find(s => s.source_id === sourceId);
+    return source?.source_name || 'Unknown';
+  };
 
   // Open form for edit
-  const handleOpenEdit = useCallback((source: DataSource) => {
-    setEditingSource(source);
+  const handleOpenEdit = useCallback((testcase: Testcase) => {
+    setEditingTestcase(testcase);
     setFormOpen(true);
   }, []);
 
   // Handle form submission
   const handleFormSubmit = useCallback(
-    async (data: DataSourceFormData, sourceId?: string) => {
-      if (sourceId) {
-        await onUpdate(sourceId, data);
+    async (data: TestcaseInput, testcaseId?: string) => {
+      if (testcaseId) {
+        await onUpdate(testcaseId, data);
       } else {
         await onCreate(data);
       }
-      // Data updates automatically via context - no refresh needed
     },
     [onCreate, onUpdate]
   );
 
   // Open delete confirmation
-  const handleOpenDelete = useCallback((source: DataSource) => {
-    setDeletingSource(source);
+  const handleOpenDelete = useCallback((testcase: Testcase) => {
+    setDeletingTestcase(testcase);
     setDeleteDialogOpen(true);
   }, []);
 
   // Handle delete confirmation
   const handleConfirmDelete = useCallback(async () => {
-    if (deletingSource) {
-      await onDelete(deletingSource.source_id);
+    if (deletingTestcase) {
+      await onDelete(deletingTestcase.testcase_id);
       setDeleteDialogOpen(false);
-      setDeletingSource(null);
-      // Data updates automatically via context - no refresh needed
+      setDeletingTestcase(null);
     }
-  }, [deletingSource, onDelete]);
+  }, [deletingTestcase, onDelete]);
 
   // Handle toggle status
   const handleToggleStatus = useCallback(
-    async (source: DataSource) => {
-      await onToggleStatus(source.source_id, source.is_active);
-      // Data updates automatically via context - no refresh needed
+    async (testcase: Testcase) => {
+      await onToggleStatus(testcase.testcase_id, testcase.is_active);
     },
     [onToggleStatus]
+  );
+
+  // Handle Quick Check save
+  const handleQuickCheckSave = useCallback(
+    async (data: TestcaseInput) => {
+      setIsSaving(true);
+      try {
+        await onCreate(data);
+        setQuickCheckOpen(false);
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [onCreate]
+  );
+
+  // Handle Table Checks wizard save
+  const handleTableChecksSave = useCallback(
+    async (data: TestcaseInput) => {
+      setIsSaving(true);
+      try {
+        await onCreate(data);
+        setTableChecksOpen(false);
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [onCreate]
   );
 
   return (
@@ -363,22 +378,42 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
       <div className={styles.pageHeader}>
         <div className={styles.headerLeft}>
           <div className={styles.headerIcon}>
-            <PlugConnectedRegular />
+            <TableSimple24Regular />
           </div>
           <div className={styles.headerContent}>
-            <h2 className={styles.pageTitle}>Manage Connections</h2>
+            <h2 className={styles.pageTitle}>Manage Testcases</h2>
             <p className={styles.pageSubtitle}>
-              Configure database connections for data quality checks
+              Define data quality checks for your tables
             </p>
           </div>
         </div>
-        <Button
-          appearance="primary"
-          icon={<Add24Regular />}
-          onClick={handleOpenCreate}
-        >
-          Add Connection
-        </Button>
+        <Menu positioning="below-end">
+          <MenuTrigger disableButtonEnhancement>
+            <Button
+              appearance="primary"
+              icon={<Add24Regular />}
+              disabled={sources.filter(s => s.is_active).length === 0}
+            >
+              New <ChevronDown16Regular style={{ marginLeft: '4px' }} />
+            </Button>
+          </MenuTrigger>
+          <MenuPopover>
+            <MenuList>
+              <MenuItem
+                icon={<Flash20Regular />}
+                onClick={() => setQuickCheckOpen(true)}
+              >
+                Quick Check
+              </MenuItem>
+              <MenuItem
+                icon={<TableMultiple20Regular />}
+                onClick={() => setTableChecksOpen(true)}
+              >
+                Table Checks
+              </MenuItem>
+            </MenuList>
+          </MenuPopover>
+        </Menu>
       </div>
 
       {/* Filters */}
@@ -389,7 +424,8 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
           label="Active only"
         />
         <span className={styles.filterCount}>
-          Total: <strong>{filteredSources.length}</strong> connection(s)
+          Total: <strong>{filteredTestcases.length}</strong> testcase(s),{' '}
+          <strong>{filteredTestcases.reduce((sum, t) => sum + t.checks.length, 0)}</strong> check(s)
         </span>
       </div>
 
@@ -397,32 +433,62 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
       <div className={styles.tableContainer}>
         {isLoading ? (
           <div className={styles.loadingOverlay}>
-            <Spinner label="Loading connections..." />
+            <Spinner label="Loading testcases..." />
           </div>
-        ) : filteredSources.length === 0 ? (
+        ) : sources.filter(s => s.is_active).length === 0 ? (
           <div className={styles.emptyState}>
             <div className={styles.emptyStateIconWrapper}>
-              <DatabaseRegular className={styles.emptyStateIcon} />
+              <TableSimple24Regular className={styles.emptyStateIcon} />
             </div>
-            <h3 className={styles.emptyStateTitle}>No connections yet</h3>
+            <h3 className={styles.emptyStateTitle}>No active connections</h3>
             <p className={styles.emptyStateDescription}>
-              Get started by adding a database connection. You'll be able to run data quality checks on your Fabric Warehouse.
+              Create a data source connection first before adding testcases. Go to the Data Sources tab to add one.
             </p>
-            <Button
-              appearance="primary"
-              icon={<Add24Regular />}
-              onClick={handleOpenCreate}
-            >
-              Add Connection
-            </Button>
+          </div>
+        ) : filteredTestcases.length === 0 ? (
+          <div className={styles.emptyState}>
+            <div className={styles.emptyStateIconWrapper}>
+              <Checkmark24Regular className={styles.emptyStateIcon} />
+            </div>
+            <h3 className={styles.emptyStateTitle}>No testcases yet</h3>
+            <p className={styles.emptyStateDescription}>
+              Get started by adding a testcase. Each testcase targets a table and contains data quality checks.
+            </p>
+            <Menu positioning="below">
+              <MenuTrigger disableButtonEnhancement>
+                <Button
+                  appearance="primary"
+                  icon={<Add24Regular />}
+                >
+                  New <ChevronDown16Regular style={{ marginLeft: '4px' }} />
+                </Button>
+              </MenuTrigger>
+              <MenuPopover>
+                <MenuList>
+                  <MenuItem
+                    icon={<Flash20Regular />}
+                    onClick={() => setQuickCheckOpen(true)}
+                  >
+                    Quick Check
+                  </MenuItem>
+                  <MenuItem
+                    icon={<TableMultiple20Regular />}
+                    onClick={() => setTableChecksOpen(true)}
+                  >
+                    Table Checks
+                  </MenuItem>
+                </MenuList>
+              </MenuPopover>
+            </Menu>
           </div>
         ) : (
           <table className={tableStyles.table}>
             <thead className={tableStyles.thead}>
               <tr>
                 <th className={tableStyles.th}>Name</th>
-                <th className={tableStyles.th}>Type</th>
-                <th className={tableStyles.th}>Server / Database</th>
+                <th className={tableStyles.th}>Table</th>
+                <th className={tableStyles.th}>Source</th>
+                <th className={tableStyles.th}>Checks</th>
                 <th className={tableStyles.th}>Status</th>
                 <th className={mergeClasses(tableStyles.th, tableStyles.thRight)}>
                   Actions
@@ -430,50 +496,38 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
               </tr>
             </thead>
             <tbody className={tableStyles.tbody}>
-              {filteredSources.map(source => (
-                <tr key={source.source_id} className={tableStyles.tr}>
+              {filteredTestcases.map(testcase => (
+                <tr key={testcase.testcase_id} className={tableStyles.tr}>
                   <td className={mergeClasses(tableStyles.td, tableStyles.cellPrimary)}>
-                    {source.source_name}
+                    {testcase.testcase_name}
+                  </td>
+                  <td className={mergeClasses(tableStyles.td, styles.cellSecondary)}>
+                    {getTableRef(testcase)}
+                  </td>
+                  <td className={tableStyles.td}>
+                    {getSourceName(testcase.source_id)}
                   </td>
                   <td className={tableStyles.td}>
                     <Badge
                       appearance="filled"
-                      className={styles.badgeType}
+                      className={styles.badgeChecks}
                     >
-                      {sourceTypeOptions.find(o => o.value === source.source_type)?.label || source.source_type}
+                      {testcase.checks.filter(c => c.is_enabled).length}/{testcase.checks.length} enabled
                     </Badge>
                   </td>
-                  <td className={mergeClasses(tableStyles.td, tableStyles.cellSecondary)}>
-                    {source.server_name && source.database_name
-                      ? `${source.server_name} / ${source.database_name}`
-                      : source.description || '-'}
-                  </td>
                   <td className={tableStyles.td}>
                     <Badge
                       appearance="filled"
-                      className={source.is_active ? styles.badgeActive : styles.badgeInactive}
+                      className={testcase.is_active ? styles.badgeActive : styles.badgeInactive}
                     >
-                      {source.is_active ? 'Active' : 'Inactive'}
+                      {testcase.is_active ? 'Active' : 'Inactive'}
                     </Badge>
                   </td>
                   <td className={mergeClasses(tableStyles.td, tableStyles.tdRight)}>
                     <div className={styles.actionsCell}>
-                      {/* Test Connection */}
-                      {onTestConnection && (
-                        <Tooltip content="Test Connection" relationship="label">
-                          <Button
-                            appearance="subtle"
-                            size="small"
-                            icon={<Flash24Regular />}
-                            className={styles.actionSuccess}
-                            onClick={() => onTestConnection(source.source_id)}
-                          />
-                        </Tooltip>
-                      )}
-
                       {/* Toggle Status */}
                       <Tooltip
-                        content={source.is_active ? 'Deactivate' : 'Activate'}
+                        content={testcase.is_active ? 'Deactivate' : 'Activate'}
                         relationship="label"
                       >
                         <Button
@@ -481,7 +535,7 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
                           size="small"
                           icon={<ArrowSwap24Regular />}
                           className={styles.actionWarning}
-                          onClick={() => handleToggleStatus(source)}
+                          onClick={() => handleToggleStatus(testcase)}
                         />
                       </Tooltip>
 
@@ -492,7 +546,7 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
                           size="small"
                           icon={<Edit24Regular />}
                           className={styles.actionPrimary}
-                          onClick={() => handleOpenEdit(source)}
+                          onClick={() => handleOpenEdit(testcase)}
                         />
                       </Tooltip>
 
@@ -503,7 +557,7 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
                           size="small"
                           icon={<Delete24Regular />}
                           className={styles.actionDanger}
-                          onClick={() => handleOpenDelete(source)}
+                          onClick={() => handleOpenDelete(testcase)}
                         />
                       </Tooltip>
                     </div>
@@ -516,8 +570,9 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
       </div>
 
       {/* Form Dialog */}
-      <DataSourceForm
-        dataSource={editingSource}
+      <TestcaseForm
+        testcase={editingTestcase}
+        sources={sources}
         open={formOpen}
         onClose={() => setFormOpen(false)}
         onSubmit={handleFormSubmit}
@@ -526,13 +581,41 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
       {/* Delete Confirmation Dialog */}
       <DeleteConfirmDialog
         open={deleteDialogOpen}
-        sourceName={deletingSource?.source_name || ''}
+        sourceName={deletingTestcase?.testcase_name || ''}
         onClose={() => {
           setDeleteDialogOpen(false);
-          setDeletingSource(null);
+          setDeletingTestcase(null);
         }}
         onConfirm={handleConfirmDelete}
       />
+
+      {/* Quick Check Panel (Drawer) */}
+      <Drawer
+        open={quickCheckOpen}
+        onOpenChange={(_, { open }) => setQuickCheckOpen(open)}
+        position="end"
+        size="large"
+      >
+        <QuickCheckPanel
+          onSave={handleQuickCheckSave}
+          onCancel={() => setQuickCheckOpen(false)}
+          isLoading={isSaving}
+        />
+      </Drawer>
+
+      {/* Table Checks Wizard (Drawer) */}
+      <Drawer
+        open={tableChecksOpen}
+        onOpenChange={(_, { open }) => setTableChecksOpen(open)}
+        position="end"
+        size="large"
+      >
+        <TestcaseWizard
+          onSave={handleTableChecksSave}
+          onCancel={() => setTableChecksOpen(false)}
+          isLoading={isSaving}
+        />
+      </Drawer>
     </div>
   );
 };

@@ -36,7 +36,8 @@
     "react-redux": "^9.2.0",
     "react-router-dom": "^5.3.4",
     "reactflow": "^11.11.4",
-    "uuid": "^11.0.5"
+    "uuid": "^11.0.5",
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@types/history": "^4.7.11",

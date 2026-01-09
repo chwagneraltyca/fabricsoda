@@ -2,7 +2,7 @@
  * DataSourceForm Component
  *
  * Form for creating/editing data sources with full connection fields.
- * Matches ER model: docs/specs/data-model/er-model-simplified.md
+ * Updated for OneLake JSON storage (Jan 2026).
  *
  * Fields:
  * - source_name (required)
@@ -50,12 +50,14 @@ import {
 import {
   DataSource,
   DataSourceFormData,
-  SourceType,
   defaultDataSourceFormData,
   dataSourceValidation,
+} from '../../types/dataSource.types';
+import {
+  SourceType,
   sourceTypeOptions,
   ConnectionStatus,
-} from '../../types/dataSource.types';
+} from '../../types/source.types';
 import { useDebugLog } from '../../../../context';
 
 // Styles matching legacy design with Fabric UX improvements
@@ -227,7 +229,7 @@ interface DataSourceFormProps {
   /** Callback when dialog closes */
   onClose: () => void;
   /** Callback when form is submitted successfully */
-  onSubmit: (data: DataSourceFormData, sourceId?: number) => Promise<void>;
+  onSubmit: (data: DataSourceFormData, sourceId?: string) => Promise<void>;
   /** Optional callback for testing connection */
   onTestConnection?: (data: DataSourceFormData) => Promise<{ success: boolean; message: string }>;
 }

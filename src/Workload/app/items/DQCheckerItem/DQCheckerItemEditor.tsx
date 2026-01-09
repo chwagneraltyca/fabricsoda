@@ -9,10 +9,10 @@
  * - Checks: Manage DQ checks (TODO)
  * - Results: View check results (TODO)
  *
- * GraphQL Pattern (from Data Lineage reference):
- * - Load item definition to get graphqlEndpoint from settings
- * - Pass endpoint to GraphQL client at initialization
- * - Item definition is stored in Fabric and includes user preferences
+ * Data Pattern (OneLake JSON):
+ * - Load all entities on mount via DataProvider
+ * - Cache in memory for instant access
+ * - Write-through to OneLake on mutations
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -35,7 +35,8 @@ import {
   RibbonAction,
 } from '../../components/ItemEditor';
 import { DataSourcesView } from './components/DataSources';
-import { initGraphQLClient } from './services';
+import { TestcasesView } from './components/Testcases';
+import { DataProvider } from './context';
 import { getWorkloadItem } from '../../controller/ItemCRUDController';
 import { WorkloadClientProvider, DebugLoggerProvider, useDebugLog, useDebugLogContext } from '../../context';
 import { DQCheckerSettings } from './DQCheckerItemSettings';
@@ -52,7 +53,6 @@ import { DQCheckerItemHelp } from './DQCheckerItemHelp';
 
 // Default settings (must match DQCheckerItemSettings.tsx)
 const DEFAULT_SETTINGS: DQCheckerSettings = {
-  graphqlEndpoint: '',
   defaultOwner: '',
   defaultSeverity: 'medium',
   defaultDimension: 'completeness',
@@ -156,7 +156,7 @@ const MainView: React.FC = () => {
       case 'data-sources':
         return <DataSourcesView />;
       case 'checks':
-        return <PlaceholderContent tabName="Checks" />;
+        return <TestcasesView />;
       case 'results':
         return <PlaceholderContent tabName="Results" />;
       default:
@@ -304,7 +304,7 @@ export const DQCheckerItemEditor: React.FC<DQCheckerItemEditorProps> = ({
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
 
-  // Item definition state (contains graphqlEndpoint and other settings)
+  // Item definition state (contains default values for checks)
   // Note: settings stored for future use (passing defaults to child components)
   const [_settings, setSettings] = useState<DQCheckerSettings>(DEFAULT_SETTINGS);
 
@@ -343,21 +343,12 @@ export const DQCheckerItemEditor: React.FC<DQCheckerItemEditorProps> = ({
     }
   }, [workloadClient, itemObjectId]);
 
-  // Initialize the GraphQL client with endpoint from item definition
-  // Pattern from Data Lineage: load definition first, then get endpoint
+  // Initialize the editor (load settings, capture workspace ID)
   useEffect(() => {
     const initialize = async () => {
       try {
-        // Step 1: Load item definition to get graphqlEndpoint from settings
-        const loadedSettings = await loadItemDefinition();
-
-        // Step 2: Initialize GraphQL client with endpoint from settings
-        const endpoint = loadedSettings.graphqlEndpoint;
-        if (!endpoint) {
-          console.warn('[DQCheckerItemEditor] No graphqlEndpoint configured. Go to Settings to configure.');
-        }
-
-        initGraphQLClient(workloadClient, endpoint);
+        // Load item definition to get settings and workspace ID
+        await loadItemDefinition();
         setIsInitialized(true);
       } catch (error) {
         console.error('Failed to initialize DQCheckerItem:', error);
@@ -366,7 +357,7 @@ export const DQCheckerItemEditor: React.FC<DQCheckerItemEditorProps> = ({
     };
 
     initialize();
-  }, [workloadClient, loadItemDefinition]);
+  }, [loadItemDefinition]);
 
   // Show loading while initializing
   if (!isInitialized && !initError) {
@@ -386,6 +377,12 @@ export const DQCheckerItemEditor: React.FC<DQCheckerItemEditorProps> = ({
     );
   }
 
+  // Item reference for OneLake operations
+  const itemReference = {
+    id: itemObjectId || '',
+    workspaceId: workspaceId,
+  };
+
   return (
     <WorkloadClientProvider workloadClient={workloadClient}>
       <DebugLoggerProvider
@@ -393,11 +390,16 @@ export const DQCheckerItemEditor: React.FC<DQCheckerItemEditorProps> = ({
         workspaceId={workspaceId}
         itemId={itemObjectId || ''}
       >
-        <EditorContent
+        <DataProvider
           workloadClient={workloadClient}
-          itemObjectId={itemObjectId}
-          onOpenHelp={() => setIsHelpOpen(true)}
-        />
+          itemReference={itemReference}
+        >
+          <EditorContent
+            workloadClient={workloadClient}
+            itemObjectId={itemObjectId}
+            onOpenHelp={() => setIsHelpOpen(true)}
+          />
+        </DataProvider>
         {/* Help Dialog */}
         <DQCheckerItemHelp
           open={isHelpOpen}

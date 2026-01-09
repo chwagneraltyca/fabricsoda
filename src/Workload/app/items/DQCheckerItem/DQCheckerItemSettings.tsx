@@ -32,16 +32,9 @@ import {
     Tag24Regular,
     DataBarVertical24Regular,
     Warning24Regular,
-    Database24Regular,
-    PlugConnected24Regular,
-    Checkmark24Regular,
-    Dismiss24Regular,
 } from '@fluentui/react-icons';
-import { FabricAuthenticationService } from '../../clients/FabricAuthenticationService';
-import { FABRIC_BASE_SCOPES } from '../../clients/FabricPlatformScopes';
 import { getWorkloadItem, saveWorkloadItem, ItemWithDefinition } from '../../controller/ItemCRUDController';
 import { PageProps } from '../../App';
-import { useDebugLog } from '../../context';
 
 const useStyles = makeStyles({
     container: {
@@ -82,39 +75,6 @@ const useStyles = makeStyles({
         alignItems: 'center',
         minHeight: '200px',
     },
-    connectionCard: {
-        backgroundColor: tokens.colorNeutralBackground1,
-        border: `1px solid ${tokens.colorNeutralStroke2}`,
-        borderRadius: tokens.borderRadiusMedium,
-        padding: tokens.spacingVerticalL,
-        boxShadow: tokens.shadow4,
-    },
-    connectionStatus: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: tokens.spacingHorizontalS,
-        marginTop: tokens.spacingVerticalM,
-        padding: tokens.spacingVerticalS,
-        borderRadius: tokens.borderRadiusMedium,
-    },
-    connectionSuccess: {
-        backgroundColor: tokens.colorPaletteGreenBackground1,
-        color: tokens.colorPaletteGreenForeground1,
-    },
-    connectionError: {
-        backgroundColor: tokens.colorPaletteRedBackground1,
-        color: tokens.colorPaletteRedForeground1,
-    },
-    connectionPending: {
-        backgroundColor: tokens.colorNeutralBackground3,
-        color: tokens.colorNeutralForeground2,
-    },
-    testButtonRow: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: tokens.spacingHorizontalM,
-        marginTop: tokens.spacingVerticalM,
-    },
 });
 
 // DQ Dimension options (from legacy app)
@@ -135,9 +95,8 @@ const SEVERITY_LEVELS = [
     { value: 'low', label: 'Low' },
 ];
 
-// Default settings
+// Default settings (GraphQL removed - using OneLake JSON now)
 const DEFAULT_SETTINGS: DQCheckerSettings = {
-    graphqlEndpoint: '',
     defaultOwner: '',
     defaultSeverity: 'medium',
     defaultDimension: 'completeness',
@@ -146,20 +105,10 @@ const DEFAULT_SETTINGS: DQCheckerSettings = {
 
 // Settings interface
 export interface DQCheckerSettings {
-    graphqlEndpoint: string;
     defaultOwner: string;
     defaultSeverity: string;
     defaultDimension: string;
     defaultTags: string;
-}
-
-// Connection test status
-type ConnectionStatus = 'idle' | 'testing' | 'success' | 'error';
-
-interface ConnectionTestResult {
-    status: ConnectionStatus;
-    message: string;
-    lastTested?: Date;
 }
 
 // Use PageProps (same pattern as Data Lineage) - workloadClient is REQUIRED
@@ -167,7 +116,6 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
     workloadClient,
 }) => {
     const styles = useStyles();
-    const log = useDebugLog('DQCheckerItemSettings');
     const { itemObjectId } = useParams<{ itemObjectId: string }>();
 
     // State - following Data Lineage pattern for Fabric persistence
@@ -177,17 +125,20 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     const [isDirty, setIsDirty] = useState(false);
-    const [connectionTest, setConnectionTest] = useState<ConnectionTestResult>({
-        status: 'idle',
-        message: 'Not tested',
-    });
 
     // Load settings from Fabric item definition (same pattern as Data Lineage)
     const loadSettings = useCallback(async () => {
-        log.info('loadSettings called', { itemObjectId });
+        console.log('[Settings] loadSettings called', { itemObjectId, hasWorkloadClient: !!workloadClient });
+
+        if (!workloadClient) {
+            console.error('[Settings] No workloadClient provided');
+            setMessage({ type: 'error', text: 'Workload client not available. Please reopen Settings.' });
+            setIsLoading(false);
+            return;
+        }
 
         if (!itemObjectId) {
-            log.error('No itemObjectId in URL');
+            console.error('[Settings] No itemObjectId in URL');
             setMessage({ type: 'error', text: 'No item ID in URL. Please reopen Settings from item editor.' });
             setIsLoading(false);
             return;
@@ -196,16 +147,16 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
         setIsLoading(true);
         try {
             // Load from Fabric backend via ItemCRUDController
-            log.info('Calling getWorkloadItem', { itemObjectId });
+            console.log('[Settings] Calling getWorkloadItem', { itemObjectId });
             const loadedItem = await getWorkloadItem<DQCheckerSettings>(
                 workloadClient,
                 itemObjectId,
                 DEFAULT_SETTINGS  // fallback if no saved definition
             );
-            log.info('Loaded item', { id: loadedItem.id, hasDefinition: !!loadedItem.definition });
+            console.log('[Settings] Loaded item', { id: loadedItem.id, hasDefinition: !!loadedItem.definition });
 
             if (!loadedItem.id) {
-                log.error('Item loaded but has no ID - fetch may have failed');
+                console.error('[Settings] Item loaded but has no ID - fetch may have failed');
                 setMessage({ type: 'error', text: 'Failed to load item. Check console for details.' });
                 setIsLoading(false);
                 return;
@@ -217,13 +168,13 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
                 setSettings({ ...DEFAULT_SETTINGS, ...loadedItem.definition });
             }
         } catch (error) {
-            log.error('Failed to load settings from Fabric', { error: error instanceof Error ? error.message : String(error) });
+            console.error('[Settings] Failed to load settings from Fabric', error instanceof Error ? error.message : String(error));
             // Keep default settings on error
             setMessage({ type: 'error', text: 'Failed to load settings from Fabric' });
         } finally {
             setIsLoading(false);
         }
-    }, [workloadClient, itemObjectId, log]);
+    }, [workloadClient, itemObjectId]);
 
     useEffect(() => {
         loadSettings();
@@ -231,16 +182,16 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
 
     // Save settings to Fabric item definition (same pattern as Data Lineage)
     const handleSave = async () => {
-        log.info('handleSave called', { itemId: item?.id, hasItem: !!item });
+        console.log('[Settings] handleSave called', { itemId: item?.id, hasItem: !!item });
 
         if (!item) {
-            log.error('Cannot save: item is null');
+            console.error('[Settings] Cannot save: item is null');
             setMessage({ type: 'error', text: 'Cannot save: item not loaded. Try reloading the page.' });
             return;
         }
 
         if (!item.id) {
-            log.error('Cannot save: item has no ID', { item });
+            console.error('[Settings] Cannot save: item has no ID', { item });
             setMessage({ type: 'error', text: 'Cannot save: item has no ID. Item may not have loaded correctly.' });
             return;
         }
@@ -248,7 +199,7 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
         setIsSaving(true);
         setMessage(null);
         try {
-            log.info('Calling saveWorkloadItem', { itemId: item.id, settings });
+            console.log('[Settings] Calling saveWorkloadItem', { itemId: item.id, settings });
             // Save to Fabric backend via ItemCRUDController
             await saveWorkloadItem<DQCheckerSettings>(workloadClient, {
                 ...item,
@@ -258,11 +209,11 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
             // Small delay to ensure Fabric has committed the change (eventual consistency)
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            log.info('Settings saved successfully');
+            console.log('[Settings] Settings saved successfully');
             setMessage({ type: 'success', text: 'Settings saved to Fabric successfully' });
             setIsDirty(false);
         } catch (error) {
-            log.error('Failed to save settings to Fabric', { error: error instanceof Error ? error.message : String(error) });
+            console.error('[Settings] Failed to save settings to Fabric', error instanceof Error ? error.message : String(error));
             const errorMsg = error instanceof Error ? error.message : String(error);
             setMessage({ type: 'error', text: `Failed to save: ${errorMsg}` });
         } finally {
@@ -285,115 +236,10 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
         setSettings(prev => ({ ...prev, [key]: value }));
         setIsDirty(true);
         setMessage(null);
-        // Reset connection test if endpoint changes
-        if (key === 'graphqlEndpoint') {
-            setConnectionTest({ status: 'idle', message: 'Not tested' });
-        }
     };
 
-    // Test GraphQL connection with Fabric authentication
-    // Pattern from working data lineage project: fabric-datalineage/LineageService.ts
-    // Simplified: no intermediate status messages, just testing state + final result
-    const handleTestConnection = async () => {
-        if (!settings.graphqlEndpoint) {
-            setConnectionTest({
-                status: 'error',
-                message: 'Please enter a GraphQL endpoint URL',
-            });
-            return;
-        }
-
-        if (!workloadClient) {
-            setConnectionTest({
-                status: 'error',
-                message: 'Workload client not available. Cannot authenticate.',
-            });
-            return;
-        }
-
-        // Simple testing state - no intermediate messages (like Data Lineage)
-        setConnectionTest({ status: 'testing', message: '' });
-
-        try {
-            // Acquire token using Fabric authentication (same pattern as LineageService)
-            const authService = new FabricAuthenticationService(workloadClient);
-            const tokenResult = await authService.acquireAccessToken(FABRIC_BASE_SCOPES.POWERBI_API);
-
-            // Query to verify dq_sources table exists (DQ Checker specific)
-            const testQuery = `
-                query TestConnection {
-                    dq_sources(first: 1) {
-                        items {
-                            source_id
-                            source_name
-                        }
-                    }
-                }
-            `;
-
-            const response = await fetch(settings.graphqlEndpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${tokenResult.token}`,
-                },
-                body: JSON.stringify({ query: testQuery }),
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                setConnectionTest({
-                    status: 'error',
-                    message: `GraphQL request failed (${response.status}): ${errorText.substring(0, 100)}`,
-                    lastTested: new Date(),
-                });
-                return;
-            }
-
-            interface GraphQLError { message: string }
-            interface GraphQLResult {
-                data?: { dq_sources?: { items?: Array<{ source_id: number; source_name: string }> } };
-                errors?: GraphQLError[];
-            }
-            const result: GraphQLResult = await response.json();
-
-            if (result.errors && result.errors.length > 0) {
-                // GraphQL returned errors - check if it's just missing table
-                const errorMsg = result.errors.map((e) => e.message).join('; ');
-                if (errorMsg.includes('does not exist')) {
-                    setConnectionTest({
-                        status: 'error',
-                        message: `Connected but dq_sources table not found. Run the schema DDL first.`,
-                        lastTested: new Date(),
-                    });
-                } else {
-                    setConnectionTest({
-                        status: 'error',
-                        message: `GraphQL error: ${errorMsg}`,
-                        lastTested: new Date(),
-                    });
-                }
-                return;
-            }
-
-            // Success!
-            const sources = result.data?.dq_sources?.items || [];
-            setConnectionTest({
-                status: 'success',
-                message: `Connected! Found ${sources.length} data source(s).`,
-                lastTested: new Date(),
-            });
-
-        } catch (error: unknown) {
-            // Handle fetch/auth errors (network, CORS, token, etc.)
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            setConnectionTest({
-                status: 'error',
-                message: `Connection failed: ${errorMessage}`,
-                lastTested: new Date(),
-            });
-        }
-    };
+    // TODO: Add DWH connection dropdown (select from sources stored in OneLake JSON)
+    // This will allow users to select a default target DWH for Soda checks
 
     if (isLoading) {
         return (
@@ -422,61 +268,6 @@ export const DQCheckerItemSettings: React.FC<PageProps> = ({
                     <MessageBarBody>{message.text}</MessageBarBody>
                 </MessageBar>
             )}
-
-            <Divider />
-
-            {/* Database Connection Settings */}
-            <div className={styles.section}>
-                <div className={styles.sectionHeader}>
-                    <Database24Regular />
-                    <Text weight="semibold">Database Connection</Text>
-                </div>
-                <div className={styles.connectionCard}>
-                    <div className={styles.fieldGroup}>
-                        <Field
-                            label="GraphQL Endpoint URL"
-                            hint="The Fabric GraphQL API endpoint for your SQL database"
-                            required
-                        >
-                            <Input
-                                type="url"
-                                value={settings.graphqlEndpoint}
-                                onChange={(_, data) => updateSetting('graphqlEndpoint', data.value)}
-                                placeholder="https://api.fabric.microsoft.com/v1/workspaces/.../graphql"
-                            />
-                        </Field>
-                    </div>
-
-                    <div className={styles.testButtonRow}>
-                        <Button
-                            appearance="secondary"
-                            icon={connectionTest.status === 'testing' ? <Spinner size="tiny" /> : <PlugConnected24Regular />}
-                            onClick={handleTestConnection}
-                            disabled={connectionTest.status === 'testing' || !settings.graphqlEndpoint}
-                        >
-                            {connectionTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
-                        </Button>
-                    </div>
-
-                    {/* Only show result card after test completes (not during testing) */}
-                    {(connectionTest.status === 'success' || connectionTest.status === 'error') && (
-                        <div
-                            className={`${styles.connectionStatus} ${
-                                connectionTest.status === 'success'
-                                    ? styles.connectionSuccess
-                                    : styles.connectionError
-                            }`}
-                        >
-                            {connectionTest.status === 'success' ? (
-                                <Checkmark24Regular />
-                            ) : (
-                                <Dismiss24Regular />
-                            )}
-                            <Text size={200}>{connectionTest.message}</Text>
-                        </div>
-                    )}
-                </div>
-            </div>
 
             <Divider />
 
